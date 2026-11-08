@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNITEN Club Smart Treasury</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-indigo-700 text-white shadow-md">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold">UNITEN Club Smart Treasury 🏛️</h1>
+            <span class="text-xs bg-indigo-600 px-3 py-1 rounded-full font-medium">SRC Manifesto MVP</span>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-5xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Add Transaction Form -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:col-span-1">
+            <h2 class="text-lg font-semibold mb-4 text-slate-700">Record Transaction</h2>
+            <form id="transaction-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Select Club</label>
+                    <select id="club-select" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="">-- Load Clubs First --</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Type</label>
+                    <select id="type-select" required class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="income">Income (In)</option>
+                        <option value="expense">Expense (Out)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Amount (RM)</label>
+                    <input type="number" step="0.01" id="amount-input" required placeholder="0.00" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Category</label>
+                    <input type="text" id="category-input" required placeholder="e.g., Merchandise, F&B, Venue" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 mb-1">Description</label>
+                    <textarea id="desc-input" rows="2" placeholder="Brief note..." class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg text-sm transition duration-200">
+                    Save Transaction
+                </button>
+            </form>
+        </div>
+
+        <!-- Right Column: Ledger Feed & Summary -->
+        <div class="md:col-span-2 space-y-6">
+            <!-- Summary Card -->
+            <div class="bg-gradient-to-r from-indigo-500 to-violet-600 text-white p-6 rounded-xl shadow-sm flex justify-between items-center">
+                <div>
+                    <p class="text-xs uppercase font-medium tracking-wider opacity-80">Total Tracked Volume</p>
+                    <h3 id="total-volume" class="text-3xl font-ext500 mt-1">RM 0.00</h3>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase font-medium tracking-wider opacity-80">System Status</p>
+                    <span class="inline-block bg-emerald-400 text-slate-900 text-xs font-bold px-2.5 py-1 rounded-full mt-1">Live DB Connected</span>
+                </div>
+            </div>
+
+            <!-- Transactions Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="font-semibold text-slate-700">Recent Club Transactions</h3>
+                    <button onclick="loadData()" class="text-xs text-indigo-600 hover:underline font-medium">Refresh</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-400 font-semibold border-b border-slate-100">
+                            <tr>
+                                <th class="px-6 py-3">Club</th>
+                                <th class="px-6 py-3">Category</th>
+                                <th class="px-6 py-3">Type</th>
+                                <th class="px-6 py-3 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transaction-table-body">
+                            <tr>
+                                <td colspan="4" class="px-6 py-4 text-center text-slate-400">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Supabase Logic Script -->
+    <script>
+        // REPLACE THESE WITH YOUR SUPABASE PROJECT URL AND ANON KEY FROM SETTINGS > API
+        const SUPABASE_URL = 'https://woviachrgiqqoqrsxjuf.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_yoV-YtwjD5JFdu2-wfZ5QQ_7lXVrse0';
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function init() {
+            await loadClubs();
+            await loadData();
+        }
+
+        async function loadClubs() {
+            const { data, error } = await _supabase.from('clubs').select('*');
+            const select = document.getElementById('club-select');
+            
+            if (error) {
+                console.error('Error fetching clubs:', error);
+                return;
+            }
+
+            if (data.length === 0) {
+                // Insert a dummy club if none exist so you can test right away
+                await _supabase.from('clubs').insert([
+                    { name: '3ESC (Energy, Economics & Env Club)', category: 'Academic' },
+                    { name: 'Sekretariat Rakan Muda', category: 'Community' }
+                ]);
+                loadClubs();
+                return;
+            }
+
+            select.innerHTML = '<option value="">-- Choose Club --</option>';
+            data.forEach(club => {
+                select.innerHTML += `<option value="${club.id}">${club.name}</option>`;
+            });
+        }
+
+        async function loadData() {
+            const { data, error } = await _supabase
+                .from('transactions')
+                .select(`*, clubs(name)`)
+                .order('created_at', { ascending: false });
+
+            const tbody = document.getElementById('transaction-table-body');
+            const totalVolumeEl = document.getElementById('total-volume');
+
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Error loading transactions</td></tr>`;
+                return;
+            }
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-slate-400">No transactions recorded yet.</td></tr>`;
+                totalVolumeEl.innerText = 'RM 0.00';
+                return;
+            }
+
+            let total = 0;
+            tbody.innerHTML = '';
+            data.forEach(tx => {
+                const amount = parseFloat(tx.amount);
+                if (tx.type === 'income') total += amount;
+                else total -= amount;
+
+                const badgeColor = tx.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+
+                tbody.innerHTML += `
+                    <tr class="border-b border-slate-50 hover:bg-slate-50/50">
+                        <td class="px-6 py-4 font-medium text-slate-900">${tx.clubs ? tx.clubs.name : 'Unknown Club'}</td>
+                        <td class="px-6 py-4">${tx.category}</td>
+                        <td class="px-6 py-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${badgeColor}">${tx.type.toUpperCase()}</span></td>
+                        <td class="px-6 py-4 text-right font-semibold ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
+                            ${tx.type === 'income' ? '+' : '-'}RM ${amount.toFixed(2)}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            totalVolumeEl.innerText = `RM ${total.toFixed(2)}`;
+        }
+
+        document.getElementById('transaction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const club_id = document.getElementById('club-select').value;
+            const type = document.getElementById('type-select').value;
+            const amount = parseFloat(document.getElementById('amount-input').value);
+            const category = document.getElementById('category-input').value;
+            const description = document.getElementById('desc-input').value;
+
+            const { error } = await _supabase.from('transactions').insert([
+                { club_id, type, amount, category, description }
+            ]);
+
+            if (error) {
+                alert('Error saving transaction: ' + error.message);
+            } else {
+                document.getElementById('transaction-form').reset();
+                loadData();
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>
