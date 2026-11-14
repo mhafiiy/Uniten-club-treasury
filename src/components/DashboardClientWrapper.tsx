@@ -13,6 +13,7 @@ interface Transaction {
   type: 'INCOME' | 'EXPENSE'
   user_email: string
   club_name?: string
+  category?: string
 }
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 
 export default function DashboardClientWrapper({ userEmail, transactions }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   
@@ -42,7 +44,6 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0)
 
-  // New function to handle deleting from Supabase
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this transaction?')) return
 
@@ -58,8 +59,50 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     if (error) {
       alert('Error deleting transaction: ' + error.message)
     } else {
-      router.refresh() // Instantly updates the dashboard data from the server
+      router.refresh()
     }
+  }
+
+  const handleOpenCreate = () => {
+    setEditingTx(null)
+    setIsModalOpen(true)
+  }
+
+  const handleOpenEdit = (tx: Transaction) => {
+    setEditingTx(tx)
+    setIsModalOpen(true)
+  }
+
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) {
+      alert('No transactions available to export for this selection.')
+      return
+    }
+
+    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
+    const rows = filteredTransactions.map(tx => [
+      new Date(tx.created_at).toLocaleDateString(),
+      `"${tx.club_name || 'Uncategorized'}"`,
+      `"${tx.category || 'General Administration'}"`,
+      `"${tx.description.replace(/"/g, '""')}"`,
+      tx.type,
+      tx.amount,
+      tx.user_email
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `uniten_treasury_${filterClub.toLowerCase().replace(/\s+/g, '_')}_ledger.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -71,11 +114,11 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
             <h1 className="text-2xl font-bold text-slate-900">UNITEN Smart Treasury Dashboard</h1>
             <p className="text-slate-500 mt-1">Authorized Access: {userEmail}</p>
           </div>
-          <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-center gap-3">
+          <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
             <select
               value={filterClub}
               onChange={(e) => setFilterClub(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 w-full sm:w-auto"
+              className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               {uniqueClubs.map(club => (
                 <option key={club} value={club}>
@@ -85,8 +128,15 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
             </select>
 
             <button 
-              onClick={() => setIsModalOpen(true)}
-              className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm w-full sm:w-auto whitespace-nowrap"
+              onClick={handleExportCSV}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              Export CSV
+            </button>
+
+            <button 
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap"
             >
               + New Transaction
             </button>
@@ -131,21 +181,29 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
                   <div>
                     <p className="font-medium text-slate-900">{tx.description}</p>
                     <p className="text-xs text-slate-500">
-                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • {tx.user_email}
+                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className={`font-bold ${tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
-                    {/* New Delete Button that only shows when you hover over the row */}
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      disabled={isDeleting === tx.id}
-                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 text-sm font-medium transition-opacity disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
-                    >
-                      {isDeleting === tx.id ? '...' : 'Delete'}
-                    </button>
+                    
+                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                      <button
+                        onClick={() => handleOpenEdit(tx)}
+                        className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(tx.id)}
+                        disabled={isDeleting === tx.id}
+                        className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
+                      >
+                        {isDeleting === tx.id ? '...' : 'Delete'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -159,6 +217,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         userEmail={userEmail} 
+        transactionToEdit={editingTx}
       />
     </div>
   )
