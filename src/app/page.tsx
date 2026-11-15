@@ -28,9 +28,7 @@ export default async function DashboardPage() {
   if (membershipError) throw new Error('Unable to load treasury permissions')
 
   const memberships = (membershipData || []) as Membership[]
-  if (memberships.length === 0) {
-    throw new Error('Treasury access has not been granted. Contact an administrator.')
-  }
+  if (memberships.length === 0) redirect('/unauthorized')
 
   const isAdmin = memberships.some(m => m.role === 'admin')
   const clubNamesFor = (roles: Membership['role'][]) =>
