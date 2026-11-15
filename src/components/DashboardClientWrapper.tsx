@@ -53,18 +53,31 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
   const canCreate = isAdmin || !!editableClubs?.length
   const exportableTransactions = filteredTransactions.filter(tx => isAdmin || !!(tx.club_name && exportableClubs?.includes(tx.club_name)))
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.replace('/login')
+    router.refresh()
+  }
+
   const handleVoid = async (id: string) => {
     const target = transactions.find(tx => tx.id === id)
     if (!target || target.voided_at || !canEdit(target.club_name)) return
     const reason = window.prompt('Reason for voiding this transaction:')
     if (!reason?.trim()) return
 
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      alert('Your session has expired. Please sign in again.')
+      router.replace('/login')
+      return
+    }
+
     setIsDeleting(id)
     const { error } = await supabase
       .from('transactions')
       .update({
         voided_at: new Date().toISOString(),
-        voided_by: (await supabase.auth.getUser()).data.user?.id,
+        voided_by: authData.user.id,
         void_reason: reason.trim(),
       })
       .eq('id', id)
@@ -98,14 +111,16 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
       return
     }
 
-    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
+    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Status', 'Void Reason', 'Recorded By']
     const rows = exportableTransactions.map(tx => [
-      new Date(tx.created_at).toLocaleDateString(),
+      new Date(tx.created_at).toISOString(),
       tx.club_name || 'Uncategorized',
       tx.category || 'General Administration',
       tx.description,
       tx.type,
       tx.amount,
+      tx.voided_at ? 'VOID' : 'ACTIVE',
+      tx.void_reason || '',
       tx.user_email
     ])
 
@@ -122,6 +137,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -159,6 +175,12 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
             >
               + New Transaction
             </button>}
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              Sign out
+            </button>
           </div>
         </header>
 
@@ -173,10 +195,10 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
           </div>
           
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 className="font-medium text-slate-500 text-sm">Automated Auditing Status</h3>
+            <h3 className="font-medium text-slate-500 text-sm">Ledger Integrity</h3>
             <div className="flex items-center gap-2 mt-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <p className="text-xl font-bold text-slate-900">System Active</p>
+              <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
+              <p className="text-xl font-bold text-slate-900">Audit logging enabled</p>
             </div>
           </div>
 
@@ -208,7 +230,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
                     
-                    {canEdit(tx.club_name) && !tx.voided_at && <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                    {canEdit(tx.club_name) && !tx.voided_at && <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleOpenEdit(tx)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
