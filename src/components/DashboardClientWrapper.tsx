@@ -73,6 +73,12 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     setIsModalOpen(true)
   }
 
+  const csvCell = (value: string | number) => {
+    const raw = String(value)
+    const safe = /^[=+@\-\t\r]/.test(raw) ? "'" + raw : raw
+    return '"' + safe.replace(/"/g, '""') + '"'
+  }
+
   const handleExportCSV = () => {
     if (filteredTransactions.length === 0) {
       alert('No transactions available to export for this selection.')
@@ -82,9 +88,9 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
     const rows = filteredTransactions.map(tx => [
       new Date(tx.created_at).toLocaleDateString(),
-      `"${tx.club_name || 'Uncategorized'}"`,
-      `"${tx.category || 'General Administration'}"`,
-      `"${tx.description.replace(/"/g, '""')}"`,
+      tx.club_name || 'Uncategorized',
+      tx.category || 'General Administration',
+      tx.description,
       tx.type,
       tx.amount,
       tx.user_email
@@ -92,7 +98,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.join(','))
+      ...rows.map(row => row.map(csvCell).join(','))
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
