@@ -18,14 +18,14 @@ interface Transaction {
 
 interface Props {
   userEmail: string
-  totalFunds: number
   transactions: Transaction[]
   isAdmin: boolean
   editableClubs: string[] | null
   exportableClubs: string[] | null
+  availableClubs: string[]
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs, exportableClubs }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs, exportableClubs, availableClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -237,6 +237,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
         transactionToEdit={editingTx}
         editableClubs={editableClubs}
         isAdmin={isAdmin}
+        availableClubs={availableClubs}
       />
     </div>
   )
