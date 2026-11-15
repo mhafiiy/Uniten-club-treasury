@@ -1,25 +1,22 @@
-# Phase 2: Treasury access control
+# Phase 2: existing Supabase role model
 
-**Do not deploy the Phase 2 branch until the database migration is reviewed and applied.** The dashboard now fails closed if no membership exists. It intentionally denies access to unprovisioned users.
+The live project already contains `clubs`, `members`, `transactions`, and `audit_log`. Phase 2 now uses those tables instead of introducing a duplicate membership table.
 
 ## Roles
-- **administrator**: all clubs, read/write/export
-- **club_treasurer**: read/write/export only for assigned club
-- **auditor**: read/export only for assigned club
-- **viewer**: read only for assigned club (no export button in a future UI iteration)
 
-## Setup
-1. Back up Supabase. Inspect the current `public.transactions` schema and all existing RLS policies. The SQL assumes `club_name` and `user_email` text columns and an existing `public.transactions` table.
-2. Review `supabase/migrations/20261115_treasury_roles.sql`. It removes existing transactions policies; check for other applications that depend on them.
-3. Apply the migration in a controlled environment. It creates `treasury_memberships` and scoped transaction policies.
-4. Add the initial administrator through Supabase SQL Editor using their `auth.users.id`. Never grant administrator based solely on email domain.
-5. Add club-specific memberships with club names matching `transactions.club_name` exactly.
-6. Test with four accounts and verify a treasurer cannot view or modify another club's records; verify auditors/viewers cannot mutate records.
-7. Review legacy `index.html`: it is not protected by Next.js and should not be deployed. Remove or isolate it before production.
+- `admin`: all clubs; read/write/export
+- `treasurer`: assigned club; read/write/export
+- `auditor`: assigned club; read/export
+- `viewer`: assigned club; read only
 
-## Known limitations
-- Existing transactions lacking `club_name` are not visible to non-administrators.
-- The application still has a hardcoded list of clubs; roles with names outside that list cannot create records until club management is migrated to the database.
-- UI checks are not a security boundary. Database RLS must be deployed and verified.
-- This branch has not been built or tested against a live Supabase instance.
-- Export permission is currently UI-level only; a user with read access can retrieve permitted rows through the API. For strict export restrictions, expose only an approved summary to viewers rather than raw transactions.
+The legacy `president` enum value is preserved for compatibility but is not part of the new treasury permission model.
+
+## Rollout
+
+1. Apply `20261115_phase2_prepare.sql`. It adds the viewer enum value, seeds the existing clubs from transaction data, adds indexes, narrows grants, and hardens callable functions. It does **not** replace transaction RLS.
+2. Create at least one `members` row with `role='admin'` and `club_id = null`.
+3. Add club-specific treasurer/auditor/viewer memberships using the matching `clubs.id`.
+4. Only after memberships exist, apply `20261115_phase2_enforce.sql`.
+5. Test all four roles before merging/deploying the GitHub branch.
+
+Do not guess administrator identity. There are currently authenticated users in Supabase but no membership rows, so enforcement before assigning an admin would intentionally deny all application access.
