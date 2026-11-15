@@ -1,16 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
-
-const CLUB_LIST = [
-  "Persatuan Silat Seni Gayong",
-  "Sekretariat Rakan Muda",
-  "Energy, Economics & Environmental Student Club",
-  "Student Representative Council",
-  "General Treasury"
-]
 
 const CATEGORY_LIST = [
   "Venue & Space Rental",
@@ -32,18 +24,20 @@ interface Transaction {
 }
 
 interface ModalProps {
-  isOpen: boolean
   onClose: () => void
   userEmail: string
   transactionToEdit?: Transaction | null
+  editableClubs: string[] | null
+  isAdmin: boolean
+  availableClubs: string[]
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit }: ModalProps) {
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
-  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(CLUB_LIST[0])
-  const [category, setCategory] = useState(CATEGORY_LIST[0])
+export default function NewTransactionModal({ onClose, userEmail, transactionToEdit, editableClubs, isAdmin, availableClubs }: ModalProps) {
+  const [description, setDescription] = useState(transactionToEdit?.description || '')
+  const [amount, setAmount] = useState(transactionToEdit ? transactionToEdit.amount.toString() : '')
+  const [type, setType] = useState<'INCOME' | 'EXPENSE'>(transactionToEdit?.type || 'EXPENSE')
+  const [club, setClub] = useState(transactionToEdit?.club_name || availableClubs[0] || '')
+  const [category, setCategory] = useState(transactionToEdit?.category || CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -52,34 +46,31 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    if (transactionToEdit) {
-      setDescription(transactionToEdit.description)
-      setAmount(transactionToEdit.amount.toString())
-      setType(transactionToEdit.type)
-      setClub(transactionToEdit.club_name || CLUB_LIST[0])
-      setCategory(transactionToEdit.category || CATEGORY_LIST[0])
-    } else {
-      setDescription('')
-      setAmount('')
-      setType('EXPENSE')
-      setClub(CLUB_LIST[0])
-      setCategory(CATEGORY_LIST[0])
-    }
-  }, [transactionToEdit, isOpen])
-
-  if (!isOpen) return null
-
+  const allowedClubs = isAdmin ? availableClubs : availableClubs.filter(name => editableClubs?.includes(name))
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!allowedClubs.includes(club) || (transactionToEdit && !isAdmin && !editableClubs?.includes(transactionToEdit.club_name || ''))) {
+      alert('You do not have permission to manage this club.')
+      return
+    }
+    const cleanDescription = description.trim()
+    if (!cleanDescription || cleanDescription.length > 200) {
+      alert('Description must be between 1 and 200 characters.')
+      return
+    }
+    const parsedAmount = Number(amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !/^\d+(\.\d{1,2})?$/.test(amount)) {
+      alert('Enter a positive amount with at most two decimal places.')
+      return
+    }
     setLoading(true)
 
     if (transactionToEdit) {
       const { error } = await supabase
         .from('transactions')
         .update({
-          description,
-          amount: parseFloat(amount),
+          description: cleanDescription,
+          amount: parsedAmount,
           type,
           club_name: club,
           category,
@@ -97,8 +88,8 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
     } else {
       const { error } = await supabase.from('transactions').insert([
         {
-          description,
-          amount: parseFloat(amount),
+          description: cleanDescription,
+          amount: parsedAmount,
           type,
           club_name: club,
           category,
@@ -114,7 +105,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
         setDescription('')
         setAmount('')
         setType('EXPENSE')
-        setClub(CLUB_LIST[0])
+        setClub(availableClubs[0] || '')
         setCategory(CATEGORY_LIST[0])
         onClose()
         router.refresh()
@@ -145,7 +136,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               onChange={(e) => setClub(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm bg-white"
             >
-              {CLUB_LIST.map((clubName) => (
+              {allowedClubs.map((clubName) => (
                 <option key={clubName} value={clubName}>
                   {clubName}
                 </option>
@@ -175,6 +166,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              maxLength={200}
               placeholder="e.g., Auditorium booking, PA system rental"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm"
             />
@@ -198,6 +190,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

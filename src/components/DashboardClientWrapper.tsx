@@ -14,15 +14,20 @@ interface Transaction {
   user_email: string
   club_name?: string
   category?: string
+  voided_at?: string | null
+  void_reason?: string | null
 }
 
 interface Props {
   userEmail: string
-  totalFunds: number
   transactions: Transaction[]
+  isAdmin: boolean
+  editableClubs: string[] | null
+  exportableClubs: string[] | null
+  availableClubs: string[]
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs, exportableClubs, availableClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -40,59 +45,88 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     filterClub === 'All' ? true : (tx.club_name || 'Uncategorized') === filterClub
   )
 
-  const displayFunds = filteredTransactions.reduce((acc, curr) => {
+  const displayFunds = filteredTransactions.filter(tx => !tx.voided_at).reduce((acc, curr) => {
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0)
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this transaction?')) return
+  const canEdit = (club?: string) => isAdmin || !!(club && editableClubs?.includes(club))
+  const canCreate = isAdmin || !!editableClubs?.length
+  const exportableTransactions = filteredTransactions.filter(tx => isAdmin || !!(tx.club_name && exportableClubs?.includes(tx.club_name)))
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.replace('/login')
+    router.refresh()
+  }
+
+  const handleVoid = async (id: string) => {
+    const target = transactions.find(tx => tx.id === id)
+    if (!target || target.voided_at || !canEdit(target.club_name)) return
+    const reason = window.prompt('Reason for voiding this transaction:')
+    if (!reason?.trim()) return
+
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError || !authData.user) {
+      alert('Your session has expired. Please sign in again.')
+      router.replace('/login')
+      return
+    }
 
     setIsDeleting(id)
-
     const { error } = await supabase
       .from('transactions')
-      .delete()
+      .update({
+        voided_at: new Date().toISOString(),
+        voided_by: authData.user.id,
+        void_reason: reason.trim(),
+      })
       .eq('id', id)
-
     setIsDeleting(null)
 
-    if (error) {
-      alert('Error deleting transaction: ' + error.message)
-    } else {
-      router.refresh()
-    }
+    if (error) alert('Error voiding transaction: ' + error.message)
+    else router.refresh()
   }
 
   const handleOpenCreate = () => {
+    if (!canCreate) return
     setEditingTx(null)
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (tx: Transaction) => {
+    if (!canEdit(tx.club_name)) return
     setEditingTx(tx)
     setIsModalOpen(true)
   }
 
+  const csvCell = (value: string | number) => {
+    const raw = String(value)
+    const safe = /^[=+@\-\t\r]/.test(raw) ? "'" + raw : raw
+    return '"' + safe.replace(/"/g, '""') + '"'
+  }
+
   const handleExportCSV = () => {
-    if (filteredTransactions.length === 0) {
+    if (exportableTransactions.length === 0) {
       alert('No transactions available to export for this selection.')
       return
     }
 
-    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
-    const rows = filteredTransactions.map(tx => [
-      new Date(tx.created_at).toLocaleDateString(),
-      `"${tx.club_name || 'Uncategorized'}"`,
-      `"${tx.category || 'General Administration'}"`,
-      `"${tx.description.replace(/"/g, '""')}"`,
+    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Status', 'Void Reason', 'Recorded By']
+    const rows = exportableTransactions.map(tx => [
+      new Date(tx.created_at).toISOString(),
+      tx.club_name || 'Uncategorized',
+      tx.category || 'General Administration',
+      tx.description,
       tx.type,
       tx.amount,
+      tx.voided_at ? 'VOID' : 'ACTIVE',
+      tx.void_reason || '',
       tx.user_email
     ])
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.join(','))
+      ...rows.map(row => row.map(csvCell).join(','))
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -103,6 +137,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -127,18 +162,24 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
               ))}
             </select>
 
-            <button 
+            {(isAdmin || !!exportableClubs?.length) && <button 
               onClick={handleExportCSV}
               className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shadow-sm"
             >
               Export CSV
-            </button>
+            </button>}
 
-            <button 
+            {canCreate && <button 
               onClick={handleOpenCreate}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap"
             >
               + New Transaction
+            </button>}
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shadow-sm"
+            >
+              Sign out
             </button>
           </div>
         </header>
@@ -154,10 +195,10 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
           </div>
           
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-            <h3 className="font-medium text-slate-500 text-sm">Automated Auditing Status</h3>
+            <h3 className="font-medium text-slate-500 text-sm">Ledger Integrity</h3>
             <div className="flex items-center gap-2 mt-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <p className="text-xl font-bold text-slate-900">System Active</p>
+              <div className="w-3 h-3 rounded-full bg-green-500" aria-hidden="true"></div>
+              <p className="text-xl font-bold text-slate-900">Audit logging enabled</p>
             </div>
           </div>
 
@@ -179,31 +220,31 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
               {filteredTransactions.map((tx) => (
                 <div key={tx.id} className="py-4 flex justify-between items-center hover:bg-slate-50 px-2 rounded-lg transition-colors -mx-2 group">
                   <div>
-                    <p className="font-medium text-slate-900">{tx.description}</p>
+                    <p className={`font-medium ${tx.voided_at ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{tx.description}</p>
                     <p className="text-xs text-slate-500">
-                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}
+                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}{tx.voided_at ? ` • VOID: ${tx.void_reason || 'No reason recorded'}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className={`font-bold ${tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
+                    <div className={`font-bold ${tx.voided_at ? 'text-slate-400 line-through' : tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
                     
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                    {canEdit(tx.club_name) && !tx.voided_at && <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleOpenEdit(tx)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => handleDelete(tx.id)}
+                      {!tx.voided_at && <button
+                        onClick={() => handleVoid(tx.id)}
                         disabled={isDeleting === tx.id}
                         className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
                       >
-                        {isDeleting === tx.id ? '...' : 'Delete'}
-                      </button>
-                    </div>
+                        {isDeleting === tx.id ? '...' : 'Void'}
+                      </button>}
+                    </div>}
                   </div>
                 </div>
               ))}
@@ -213,12 +254,15 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
 
       </div>
 
-      <NewTransactionModal 
-        isOpen={isModalOpen} 
+      {isModalOpen && <NewTransactionModal 
+        key={editingTx?.id || 'new'}
         onClose={() => setIsModalOpen(false)} 
         userEmail={userEmail} 
         transactionToEdit={editingTx}
-      />
+        editableClubs={editableClubs}
+        isAdmin={isAdmin}
+        availableClubs={availableClubs}
+      />}
     </div>
   )
 }
