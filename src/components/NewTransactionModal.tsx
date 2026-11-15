@@ -36,13 +36,15 @@ interface ModalProps {
   onClose: () => void
   userEmail: string
   transactionToEdit?: Transaction | null
+  editableClubs: string[] | null
+  isAdmin: boolean
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit }: ModalProps) {
+export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit, editableClubs, isAdmin }: ModalProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(CLUB_LIST[0])
+  const [club, setClub] = useState(editableClubs?.[0] || CLUB_LIST[0])
   const [category, setCategory] = useState(CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -63,15 +65,20 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
       setDescription('')
       setAmount('')
       setType('EXPENSE')
-      setClub(CLUB_LIST[0])
+      setClub(editableClubs?.[0] || CLUB_LIST[0])
       setCategory(CATEGORY_LIST[0])
     }
   }, [transactionToEdit, isOpen])
 
+  const allowedClubs = isAdmin ? CLUB_LIST : CLUB_LIST.filter(name => editableClubs?.includes(name))
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!allowedClubs.includes(club) || (transactionToEdit && !isAdmin && !editableClubs?.includes(transactionToEdit.club_name || ''))) {
+      alert('You do not have permission to manage this club.')
+      return
+    }
     const parsedAmount = Number(amount)
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !/^\d+(\.\d{1,2})?$/.test(amount)) {
       alert('Enter a positive amount with at most two decimal places.')
@@ -150,7 +157,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               onChange={(e) => setClub(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm bg-white"
             >
-              {CLUB_LIST.map((clubName) => (
+              {allowedClubs.map((clubName) => (
                 <option key={clubName} value={clubName}>
                   {clubName}
                 </option>
