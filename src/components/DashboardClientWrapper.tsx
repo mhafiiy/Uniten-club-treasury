@@ -232,7 +232,8 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
 
       </div>
 
-      <NewTransactionModal 
+      {isModalOpen && <NewTransactionModal 
+        key={editingTx?.id || 'new'}
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         userEmail={userEmail} 
@@ -240,7 +241,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
         editableClubs={editableClubs}
         isAdmin={isAdmin}
         availableClubs={availableClubs}
-      />
+      />}
     </div>
   )
 }
