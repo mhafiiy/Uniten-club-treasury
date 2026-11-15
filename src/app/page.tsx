@@ -25,10 +25,14 @@ export default async function DashboardPage() {
   }
 
   // Fetch financial data securely from Supabase
-  const { data: transactions } = await supabase
+  const { data: transactions, error: transactionsError } = await supabase
     .from('transactions')
     .select('*')
     .order('created_at', { ascending: false })
+
+  if (transactionsError || transactions === null) {
+    throw new Error('Unable to load treasury transactions')
+  }
 
   // Calculate automated treasury balance
   const totalFunds = transactions?.reduce((acc, curr) => {
