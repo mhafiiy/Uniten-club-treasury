@@ -49,7 +49,7 @@ on public.transactions for insert
 to authenticated
 with check (
   (select private.can_access_club(club_name, true))
-  and lower(user_email) = lower((select auth.jwt() ->> 'email'))
+  and lower(user_email) = lower(((select auth.jwt()) ->> 'email'))
   and amount > 0
 );
 
@@ -85,9 +85,9 @@ drop policy if exists treasury_audit_admin_read on public.audit_log;
 create policy treasury_audit_admin_read
 on public.audit_log for select
 to authenticated
-using (
-  exists (
-    select 1 from public.members m
-    where m.user_id = (select auth.uid()) and m.role = 'admin'
-  )
-);
+using ((select private.is_treasury_admin()));
+
+
+-- Final hardening after role policies are live.
+alter function public.hook_restrict_uniten_signup(jsonb) set search_path = 'public', 'auth';
+revoke execute on function public.get_user_role(uuid) from authenticated;
