@@ -72,6 +72,11 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const parsedAmount = Number(amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !/^\d+(\.\d{1,2})?$/.test(amount)) {
+      alert('Enter a positive amount with at most two decimal places.')
+      return
+    }
     setLoading(true)
 
     if (transactionToEdit) {
@@ -79,7 +84,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
         .from('transactions')
         .update({
           description,
-          amount: parseFloat(amount),
+          amount: parsedAmount,
           type,
           club_name: club,
           category,
@@ -98,7 +103,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
       const { error } = await supabase.from('transactions').insert([
         {
           description,
-          amount: parseFloat(amount),
+          amount: parsedAmount,
           type,
           club_name: club,
           category,
