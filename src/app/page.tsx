@@ -5,7 +5,7 @@ import DashboardClientWrapper from '../components/DashboardClientWrapper'
 
 type Membership = {
   role: 'treasurer' | 'president' | 'auditor' | 'admin' | 'viewer'
-  clubs: { name: string } | null
+  clubs: { name: string }[] | null
 }
 
 export default async function DashboardPage() {
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
   const clubNamesFor = (roles: Membership['role'][]) =>
     memberships
       .filter(m => roles.includes(m.role))
-      .map(m => m.clubs?.name)
+      .map(m => m.clubs?.[0]?.name)
       .filter((name): name is string => Boolean(name))
 
   const editableClubs = isAdmin ? null : clubNamesFor(['treasurer'])
