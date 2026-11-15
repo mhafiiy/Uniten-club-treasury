@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
@@ -34,11 +34,11 @@ interface ModalProps {
 }
 
 export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit, editableClubs, isAdmin, availableClubs }: ModalProps) {
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
-  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(availableClubs[0] || '')
-  const [category, setCategory] = useState(CATEGORY_LIST[0])
+  const [description, setDescription] = useState(transactionToEdit?.description || '')
+  const [amount, setAmount] = useState(transactionToEdit ? transactionToEdit.amount.toString() : '')
+  const [type, setType] = useState<'INCOME' | 'EXPENSE'>(transactionToEdit?.type || 'EXPENSE')
+  const [club, setClub] = useState(transactionToEdit?.club_name || availableClubs[0] || '')
+  const [category, setCategory] = useState(transactionToEdit?.category || CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -47,25 +47,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  useEffect(() => {
-    if (transactionToEdit) {
-      setDescription(transactionToEdit.description)
-      setAmount(transactionToEdit.amount.toString())
-      setType(transactionToEdit.type)
-      setClub(transactionToEdit.club_name || availableClubs[0] || '')
-      setCategory(transactionToEdit.category || CATEGORY_LIST[0])
-    } else {
-      setDescription('')
-      setAmount('')
-      setType('EXPENSE')
-      setClub(availableClubs[0] || '')
-      setCategory(CATEGORY_LIST[0])
-    }
-  }, [transactionToEdit, isOpen, availableClubs])
-
   const allowedClubs = isAdmin ? availableClubs : availableClubs.filter(name => editableClubs?.includes(name))
-  if (!isOpen) return null
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!allowedClubs.includes(club) || (transactionToEdit && !isAdmin && !editableClubs?.includes(transactionToEdit.club_name || ''))) {
