@@ -4,14 +4,6 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
-const CLUB_LIST = [
-  "Persatuan Silat Seni Gayong",
-  "Sekretariat Rakan Muda",
-  "Energy, Economics & Environmental Student Club",
-  "Student Representative Council",
-  "General Treasury"
-]
-
 const CATEGORY_LIST = [
   "Venue & Space Rental",
   "Equipment & Hardware",
@@ -38,13 +30,14 @@ interface ModalProps {
   transactionToEdit?: Transaction | null
   editableClubs: string[] | null
   isAdmin: boolean
+  availableClubs: string[]
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit, editableClubs, isAdmin }: ModalProps) {
+export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit, editableClubs, isAdmin, availableClubs }: ModalProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(editableClubs?.[0] || CLUB_LIST[0])
+  const [club, setClub] = useState(availableClubs[0] || '')
   const [category, setCategory] = useState(CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -59,18 +52,18 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
       setDescription(transactionToEdit.description)
       setAmount(transactionToEdit.amount.toString())
       setType(transactionToEdit.type)
-      setClub(transactionToEdit.club_name || CLUB_LIST[0])
+      setClub(transactionToEdit.club_name || availableClubs[0] || '')
       setCategory(transactionToEdit.category || CATEGORY_LIST[0])
     } else {
       setDescription('')
       setAmount('')
       setType('EXPENSE')
-      setClub(editableClubs?.[0] || CLUB_LIST[0])
+      setClub(availableClubs[0] || '')
       setCategory(CATEGORY_LIST[0])
     }
-  }, [transactionToEdit, isOpen])
+  }, [transactionToEdit, isOpen, availableClubs])
 
-  const allowedClubs = isAdmin ? CLUB_LIST : CLUB_LIST.filter(name => editableClubs?.includes(name))
+  const allowedClubs = isAdmin ? availableClubs : availableClubs.filter(name => editableClubs?.includes(name))
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,7 +119,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
         setDescription('')
         setAmount('')
         setType('EXPENSE')
-        setClub(CLUB_LIST[0])
+        setClub(availableClubs[0] || '')
         setCategory(CATEGORY_LIST[0])
         onClose()
         router.refresh()
