@@ -234,7 +234,6 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
 
       {isModalOpen && <NewTransactionModal 
         key={editingTx?.id || 'new'}
-        isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         userEmail={userEmail} 
         transactionToEdit={editingTx}
