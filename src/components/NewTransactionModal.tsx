@@ -24,7 +24,6 @@ interface Transaction {
 }
 
 interface ModalProps {
-  isOpen: boolean
   onClose: () => void
   userEmail: string
   transactionToEdit?: Transaction | null
@@ -33,7 +32,7 @@ interface ModalProps {
   availableClubs: string[]
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit, editableClubs, isAdmin, availableClubs }: ModalProps) {
+export default function NewTransactionModal({ onClose, userEmail, transactionToEdit, editableClubs, isAdmin, availableClubs }: ModalProps) {
   const [description, setDescription] = useState(transactionToEdit?.description || '')
   const [amount, setAmount] = useState(transactionToEdit ? transactionToEdit.amount.toString() : '')
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>(transactionToEdit?.type || 'EXPENSE')
