@@ -3,43 +3,56 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import DashboardClientWrapper from '../components/DashboardClientWrapper'
 
+type Membership = {
+  role: 'treasurer' | 'president' | 'auditor' | 'admin' | 'viewer'
+  clubs: { name: string } | null
+}
+
 export default async function DashboardPage() {
   const cookieStore = await cookies()
-  
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-      },
-    }
+    { cookies: { getAll: () => cookieStore.getAll() } }
   )
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) redirect('/login')
 
-  if (authError || !user) {
-    redirect('/login')
-  }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from('treasury_memberships')
-    .select('role, club_name')
+  const { data: membershipData, error: membershipError } = await supabase
+    .from('members')
+    .select('role, clubs(name)')
     .eq('user_id', user.id)
 
-  if (membershipError || !membership || membership.length === 0) {
+  if (membershipError) throw new Error('Unable to load treasury permissions')
+
+  const memberships = (membershipData || []) as Membership[]
+  if (memberships.length === 0) {
     throw new Error('Treasury access has not been granted. Contact an administrator.')
   }
 
-  const isAdmin = membership.some(m => m.role === 'administrator')
-  const exportableClubs = isAdmin ? null : membership.filter(m => ['club_treasurer', 'auditor'].includes(m.role)).map(m => m.club_name).filter((name): name is string => !!name)
-  const editableClubs = isAdmin
-    ? null
-    : membership.filter(m => m.role === 'club_treasurer').map(m => m.club_name).filter((name): name is string => !!name)
+  const isAdmin = memberships.some(m => m.role === 'admin')
+  const clubNamesFor = (roles: Membership['role'][]) =>
+    memberships
+      .filter(m => roles.includes(m.role))
+      .map(m => m.clubs?.name)
+      .filter((name): name is string => Boolean(name))
 
-  // Fetch financial data securely from Supabase
+  const editableClubs = isAdmin ? null : clubNamesFor(['treasurer'])
+  const exportableClubs = isAdmin ? null : clubNamesFor(['treasurer', 'auditor'])
+
+  const { data: clubs, error: clubsError } = await supabase
+    .from('clubs')
+    .select('name')
+    .order('name')
+
+  if (clubsError) throw new Error('Unable to load clubs')
+
+  const availableClubs = isAdmin
+    ? (clubs || []).map(c => c.name)
+    : editableClubs || []
+
   const { data: transactions, error: transactionsError } = await supabase
     .from('transactions')
     .select('*')
@@ -49,19 +62,14 @@ export default async function DashboardPage() {
     throw new Error('Unable to load treasury transactions')
   }
 
-  // Calculate automated treasury balance
-  const totalFunds = transactions?.reduce((acc, curr) => {
-    return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
-  }, 0) || 0
-
   return (
-    <DashboardClientWrapper 
-      userEmail={user.email!} 
-      totalFunds={totalFunds} 
-      transactions={transactions || []}
+    <DashboardClientWrapper
+      userEmail={user.email!}
+      transactions={transactions}
       isAdmin={isAdmin}
       editableClubs={editableClubs}
-      exportableClubs={exportableClubs} 
+      exportableClubs={exportableClubs}
+      availableClubs={availableClubs}
     />
   )
 }
