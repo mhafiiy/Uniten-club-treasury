@@ -34,6 +34,7 @@ export default async function DashboardPage() {
   }
 
   const isAdmin = membership.some(m => m.role === 'administrator')
+  const exportableClubs = isAdmin ? null : membership.filter(m => ['club_treasurer', 'auditor'].includes(m.role)).map(m => m.club_name).filter((name): name is string => !!name)
   const editableClubs = isAdmin
     ? null
     : membership.filter(m => m.role === 'club_treasurer').map(m => m.club_name).filter((name): name is string => !!name)
@@ -59,7 +60,8 @@ export default async function DashboardPage() {
       totalFunds={totalFunds} 
       transactions={transactions || []}
       isAdmin={isAdmin}
-      editableClubs={editableClubs} 
+      editableClubs={editableClubs}
+      exportableClubs={exportableClubs} 
     />
   )
 }
