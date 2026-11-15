@@ -22,9 +22,10 @@ interface Props {
   transactions: Transaction[]
   isAdmin: boolean
   editableClubs: string[] | null
+  exportableClubs: string[] | null
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs, exportableClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -48,6 +49,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
 
   const canEdit = (club?: string) => isAdmin || !!(club && editableClubs?.includes(club))
   const canCreate = isAdmin || !!editableClubs?.length
+  const exportableTransactions = filteredTransactions.filter(tx => isAdmin || !!(tx.club_name && exportableClubs?.includes(tx.club_name)))
 
   const handleDelete = async (id: string) => {
     const target = transactions.find(tx => tx.id === id)
@@ -89,13 +91,13 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
   }
 
   const handleExportCSV = () => {
-    if (filteredTransactions.length === 0) {
+    if (exportableTransactions.length === 0) {
       alert('No transactions available to export for this selection.')
       return
     }
 
     const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
-    const rows = filteredTransactions.map(tx => [
+    const rows = exportableTransactions.map(tx => [
       new Date(tx.created_at).toLocaleDateString(),
       tx.club_name || 'Uncategorized',
       tx.category || 'General Administration',
@@ -142,12 +144,12 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
               ))}
             </select>
 
-            <button 
+            {(isAdmin || !!exportableClubs?.length) && <button 
               onClick={handleExportCSV}
               className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors shadow-sm"
             >
               Export CSV
-            </button>
+            </button>}
 
             {canCreate && <button 
               onClick={handleOpenCreate}
