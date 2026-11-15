@@ -14,6 +14,8 @@ interface Transaction {
   user_email: string
   club_name?: string
   category?: string
+  voided_at?: string | null
+  void_reason?: string | null
 }
 
 interface Props {
@@ -43,7 +45,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
     filterClub === 'All' ? true : (tx.club_name || 'Uncategorized') === filterClub
   )
 
-  const displayFunds = filteredTransactions.reduce((acc, curr) => {
+  const displayFunds = filteredTransactions.filter(tx => !tx.voided_at).reduce((acc, curr) => {
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0)
 
@@ -51,25 +53,25 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
   const canCreate = isAdmin || !!editableClubs?.length
   const exportableTransactions = filteredTransactions.filter(tx => isAdmin || !!(tx.club_name && exportableClubs?.includes(tx.club_name)))
 
-  const handleDelete = async (id: string) => {
+  const handleVoid = async (id: string) => {
     const target = transactions.find(tx => tx.id === id)
-    if (!target || !canEdit(target.club_name)) return
-    if (!window.confirm('Are you sure you want to delete this transaction?')) return
+    if (!target || target.voided_at || !canEdit(target.club_name)) return
+    const reason = window.prompt('Reason for voiding this transaction:')
+    if (!reason?.trim()) return
 
     setIsDeleting(id)
-
     const { error } = await supabase
       .from('transactions')
-      .delete()
+      .update({
+        voided_at: new Date().toISOString(),
+        voided_by: (await supabase.auth.getUser()).data.user?.id,
+        void_reason: reason.trim(),
+      })
       .eq('id', id)
-
     setIsDeleting(null)
 
-    if (error) {
-      alert('Error deleting transaction: ' + error.message)
-    } else {
-      router.refresh()
-    }
+    if (error) alert('Error voiding transaction: ' + error.message)
+    else router.refresh()
   }
 
   const handleOpenCreate = () => {
@@ -196,30 +198,30 @@ export default function DashboardClientWrapper({ userEmail, transactions, isAdmi
               {filteredTransactions.map((tx) => (
                 <div key={tx.id} className="py-4 flex justify-between items-center hover:bg-slate-50 px-2 rounded-lg transition-colors -mx-2 group">
                   <div>
-                    <p className="font-medium text-slate-900">{tx.description}</p>
+                    <p className={`font-medium ${tx.voided_at ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{tx.description}</p>
                     <p className="text-xs text-slate-500">
-                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}
+                      {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}{tx.voided_at ? ` • VOID: ${tx.void_reason || 'No reason recorded'}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className={`font-bold ${tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
+                    <div className={`font-bold ${tx.voided_at ? 'text-slate-400 line-through' : tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
                     
-                    {canEdit(tx.club_name) && <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                    {canEdit(tx.club_name) && !tx.voided_at && <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(tx)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => handleDelete(tx.id)}
+                      {!tx.voided_at && <button
+                        onClick={() => handleVoid(tx.id)}
                         disabled={isDeleting === tx.id}
                         className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
                       >
-                        {isDeleting === tx.id ? '...' : 'Delete'}
-                      </button>
+                        {isDeleting === tx.id ? '...' : 'Void'}
+                      </button>}
                     </div>}
                   </div>
                 </div>
