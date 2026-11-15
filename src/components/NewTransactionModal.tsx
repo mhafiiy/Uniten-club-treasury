@@ -53,6 +53,11 @@ export default function NewTransactionModal({ onClose, userEmail, transactionToE
       alert('You do not have permission to manage this club.')
       return
     }
+    const cleanDescription = description.trim()
+    if (!cleanDescription || cleanDescription.length > 200) {
+      alert('Description must be between 1 and 200 characters.')
+      return
+    }
     const parsedAmount = Number(amount)
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !/^\d+(\.\d{1,2})?$/.test(amount)) {
       alert('Enter a positive amount with at most two decimal places.')
@@ -64,7 +69,7 @@ export default function NewTransactionModal({ onClose, userEmail, transactionToE
       const { error } = await supabase
         .from('transactions')
         .update({
-          description,
+          description: cleanDescription,
           amount: parsedAmount,
           type,
           club_name: club,
@@ -83,7 +88,7 @@ export default function NewTransactionModal({ onClose, userEmail, transactionToE
     } else {
       const { error } = await supabase.from('transactions').insert([
         {
-          description,
+          description: cleanDescription,
           amount: parsedAmount,
           type,
           club_name: club,
@@ -161,6 +166,7 @@ export default function NewTransactionModal({ onClose, userEmail, transactionToE
               required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              maxLength={200}
               placeholder="e.g., Auditorium booking, PA system rental"
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm"
             />
@@ -184,6 +190,7 @@ export default function NewTransactionModal({ onClose, userEmail, transactionToE
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
