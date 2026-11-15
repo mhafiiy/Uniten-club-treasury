@@ -20,9 +20,11 @@ interface Props {
   userEmail: string
   totalFunds: number
   transactions: Transaction[]
+  isAdmin: boolean
+  editableClubs: string[] | null
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, isAdmin, editableClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -44,7 +46,12 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0)
 
+  const canEdit = (club?: string) => isAdmin || !!(club && editableClubs?.includes(club))
+  const canCreate = isAdmin || !!editableClubs?.length
+
   const handleDelete = async (id: string) => {
+    const target = transactions.find(tx => tx.id === id)
+    if (!target || !canEdit(target.club_name)) return
     if (!window.confirm('Are you sure you want to delete this transaction?')) return
 
     setIsDeleting(id)
@@ -64,11 +71,13 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
   }
 
   const handleOpenCreate = () => {
+    if (!canCreate) return
     setEditingTx(null)
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (tx: Transaction) => {
+    if (!canEdit(tx.club_name)) return
     setEditingTx(tx)
     setIsModalOpen(true)
   }
@@ -140,12 +149,12 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
               Export CSV
             </button>
 
-            <button 
+            {canCreate && <button 
               onClick={handleOpenCreate}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap"
             >
               + New Transaction
-            </button>
+            </button>}
           </div>
         </header>
 
@@ -195,7 +204,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
                     
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                    {canEdit(tx.club_name) && <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(tx)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
@@ -209,7 +218,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
                       >
                         {isDeleting === tx.id ? '...' : 'Delete'}
                       </button>
-                    </div>
+                    </div>}
                   </div>
                 </div>
               ))}
@@ -224,6 +233,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
         onClose={() => setIsModalOpen(false)} 
         userEmail={userEmail} 
         transactionToEdit={editingTx}
+        editableClubs={editableClubs}
+        isAdmin={isAdmin}
       />
     </div>
   )
