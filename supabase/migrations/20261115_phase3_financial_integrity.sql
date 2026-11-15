@@ -75,3 +75,45 @@ with check (
   and amount > 0 and amount = round(amount,2)
   and voided_at is null and voided_by is null and void_reason is null
 );
+
+
+-- Once voided, a transaction cannot be edited or unvoided.
+create or replace function private.enforce_transaction_immutability()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.voided_at is not null then
+    raise exception 'Voided transactions are immutable';
+  end if;
+
+  if new.id <> old.id
+     or new.created_at is distinct from old.created_at
+     or new.user_email is distinct from old.user_email then
+    raise exception 'Transaction identity and original recorder are immutable';
+  end if;
+
+  if old.voided_at is null and new.voided_at is not null then
+    if new.voided_by is distinct from (select auth.uid())
+       or new.void_reason is null
+       or length(trim(new.void_reason)) = 0 then
+      raise exception 'Voiding requires the current user and a reason';
+    end if;
+  elsif new.voided_at is distinct from old.voided_at
+     or new.voided_by is distinct from old.voided_by
+     or new.void_reason is distinct from old.void_reason then
+    raise exception 'Void metadata can only be set once';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.enforce_transaction_immutability() from public, anon, authenticated;
+
+drop trigger if exists transactions_enforce_immutability on public.transactions;
+create trigger transactions_enforce_immutability
+before update on public.transactions
+for each row execute function private.enforce_transaction_immutability();
