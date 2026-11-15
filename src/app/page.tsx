@@ -24,6 +24,20 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
+  const { data: membership, error: membershipError } = await supabase
+    .from('treasury_memberships')
+    .select('role, club_name')
+    .eq('user_id', user.id)
+
+  if (membershipError || !membership || membership.length === 0) {
+    throw new Error('Treasury access has not been granted. Contact an administrator.')
+  }
+
+  const isAdmin = membership.some(m => m.role === 'administrator')
+  const editableClubs = isAdmin
+    ? null
+    : membership.filter(m => m.role === 'club_treasurer').map(m => m.club_name).filter((name): name is string => !!name)
+
   // Fetch financial data securely from Supabase
   const { data: transactions, error: transactionsError } = await supabase
     .from('transactions')
@@ -43,7 +57,9 @@ export default async function DashboardPage() {
     <DashboardClientWrapper 
       userEmail={user.email!} 
       totalFunds={totalFunds} 
-      transactions={transactions || []} 
+      transactions={transactions || []}
+      isAdmin={isAdmin}
+      editableClubs={editableClubs} 
     />
   )
 }
