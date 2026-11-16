@@ -34,7 +34,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const uniqueClubs = ['All', ...Array.from(new Set(transactions.map(tx => tx.club_name || 'Uncategorized')))]
+  const uniqueClubs = ['All', ...Array.from(new Set([\n    '3ESC (Energy, Economics & Environmental Student Club)',\n    'IMechE UNITEN',\n    'IET UNITEN',\n    'SRM UNITEN (Sekretariat Rakan Muda)',\n    'Student Representative Council',\n    'Persatuan Silat Seni Gayong',\n    'General Treasury',\n    ...transactions.map(tx => tx.club_name || 'Uncategorized'),\n  ]))]
 
   const filteredTransactions = transactions.filter(tx => 
     filterClub === 'All' ? true : (tx.club_name || 'Uncategorized') === filterClub
