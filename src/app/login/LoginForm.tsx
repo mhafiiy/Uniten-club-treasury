@@ -2,26 +2,26 @@
 
 import { useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { ALLOWED_EMAIL_DOMAINS, OAUTH_PROVIDER } from '@/lib/auth'
+import { isStudentEmail, OAUTH_PROVIDER } from '@/lib/auth'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  domain: `Only UNITEN student emails (@${ALLOWED_EMAIL_DOMAINS.join(', @')}) can sign in.`,
+  domain: 'Only approved UNITEN student accounts and the designated administrator may sign in.',
   auth: 'Sign in failed. Please try again.',
 }
 
 export default function LoginForm({ error }: { error?: string }) {
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState(
-    error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.auth : ''
-  )
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState(error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.auth : '')
+  const [success, setSuccess] = useState(false)
   const supabase = createClient()
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     setLoading(true)
     setMessage('')
-
+    setSuccess(false)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: OAUTH_PROVIDER,
       options: {
@@ -29,11 +29,35 @@ export default function LoginForm({ error }: { error?: string }) {
         queryParams: { prompt: 'select_account' },
       },
     })
-
     if (error) {
       setMessage(error.message)
       setLoading(false)
     }
+  }
+
+  const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setMessage('')
+    setSuccess(false)
+    if (!isStudentEmail(email)) {
+      setMessage('Enter your official @student.uniten.edu.my email address.')
+      return
+    }
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        shouldCreateUser: true,
+      },
+    })
+    if (error) {
+      setMessage('Unable to send the verification email. Please try again or contact the administrator.')
+    } else {
+      setSuccess(true)
+      setMessage('Check your UNITEN inbox for the secure sign-in link or code.')
+    }
+    setLoading(false)
   }
 
   return (
@@ -41,27 +65,43 @@ export default function LoginForm({ error }: { error?: string }) {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold text-slate-900">UNITEN Smart Treasury</CardTitle>
-          <CardDescription>Club Financial Management & Auditing</CardDescription>
+          <CardDescription>Club Financial Management &amp; Auditing</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-slate-700 text-center">
-              Sign in with your UNITEN student email
-              <br />
-              <span className="text-slate-500">({ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(', ')})</span>
+              Sign in using your official UNITEN student email or an approved administrator Google account.
             </p>
             {message && (
-              <div className="p-3 text-sm rounded-md bg-red-100 text-red-700">
+              <div role="status" className={`p-3 text-sm rounded-md ${success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
                 {message}
               </div>
             )}
-            <Button type="button" onClick={handleLogin} className="w-full" disabled={loading}>
-              {loading ? 'Redirecting...' : 'Sign in with Google'}
+            <form onSubmit={handleEmailLogin} className="space-y-3">
+              <label htmlFor="student-email" className="block text-sm font-medium text-slate-700">UNITEN student email</label>
+              <input
+                id="student-email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="name@student.uniten.edu.my"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                disabled={loading}
+              />
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Please wait...' : 'Send secure sign-in link'}
+              </Button>
+            </form>
+            <div className="flex items-center gap-3 text-xs text-slate-500"><div className="h-px flex-1 bg-slate-200" />OR<div className="h-px flex-1 bg-slate-200" /></div>
+            <Button type="button" onClick={handleGoogleLogin} className="w-full" disabled={loading}>
+              {loading ? 'Please wait...' : 'Continue with Google'}
             </Button>
           </div>
         </CardContent>
         <CardFooter className="text-xs text-center text-slate-500 justify-center">
-          Access restricted strictly to authorized UNITEN staff and student representatives.
+          Signing in does not grant club or financial permissions. Access requires an authorised role.
         </CardFooter>
       </Card>
     </div>

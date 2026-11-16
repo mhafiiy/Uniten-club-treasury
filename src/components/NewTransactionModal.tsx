@@ -52,6 +52,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Pre-existing modal form reset on edit/open; refactor separately. */
   useEffect(() => {
     if (transactionToEdit) {
       setDescription(transactionToEdit.description)
@@ -67,6 +68,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
       setCategory(CATEGORY_LIST[0])
     }
   }, [transactionToEdit, isOpen])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null
 
