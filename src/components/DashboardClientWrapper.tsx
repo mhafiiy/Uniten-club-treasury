@@ -102,8 +102,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.join(','))
-    ].join('
-')
+    ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
