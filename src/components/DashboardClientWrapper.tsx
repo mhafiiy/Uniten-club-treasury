@@ -177,19 +177,19 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
           ) : (
             <div className="divide-y divide-slate-100">
               {filteredTransactions.map((tx) => (
-                <div key={tx.id} className="py-4 flex justify-between items-center hover:bg-slate-50 px-2 rounded-lg transition-colors -mx-2 group">
+                <div key={tx.id} className="py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:bg-slate-50 px-2 rounded-lg transition-colors -mx-2 group">
                   <div>
                     <p className="font-medium text-slate-900">{tx.description}</p>
                     <p className="text-xs text-slate-500">
                       {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                     <div className={`font-bold ${tx.type === 'INCOME' ? 'text-green-600' : 'text-slate-900'}`}>
                       {tx.type === 'INCOME' ? '+' : '-'} RM {Number(tx.amount).toFixed(2)}
                     </div>
                     
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
+                    <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(tx)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
