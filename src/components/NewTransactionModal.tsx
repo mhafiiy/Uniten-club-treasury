@@ -5,9 +5,12 @@ import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
 const CLUB_LIST = [
+  "3ESC (Energy, Economics & Environmental Student Club)",
+  "IMechE UNITEN",
+  "IET UNITEN",
+  "SRM UNITEN (Sekretariat Rakan Muda)",
   "Persatuan Silat Seni Gayong",
   "Sekretariat Rakan Muda",
-  "Energy, Economics & Environmental Student Club",
   "Student Representative Council",
   "General Treasury"
 ]
