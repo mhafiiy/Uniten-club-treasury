@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button'
 
 const ERROR_MESSAGES: Record<string, string> = {
-  domain: 'Only approved UNITEN student accounts and the designated administrator may sign in.',
+  domain: 'Only UNITEN student accounts and approved administrators may sign in after the volunteer testing period.',
   auth: 'Sign in failed. Please try again.',
 }
 
@@ -70,7 +70,7 @@ export default function LoginForm({ error }: { error?: string }) {
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-slate-700 text-center">
-              Sign in using your official UNITEN student email or an approved administrator Google account.
+              UNITEN students may use email verification. During volunteer testing, personal Gmail accounts can also use Google sign-in until 24 November 2026 (UTC). Volunteers receive no financial permissions automatically.
             </p>
             {message && (
               <div role="status" className={`p-3 text-sm rounded-md ${success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'}`}>
