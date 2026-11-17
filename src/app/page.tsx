@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import DashboardClientWrapper from '../components/DashboardClientWrapper'
+import AppShell from '@/components/app-shell'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -23,10 +24,12 @@ export default async function DashboardPage() {
   }, 0) || 0
 
   return (
-    <DashboardClientWrapper 
+    <AppShell email={user.email!}>
+      <DashboardClientWrapper 
       userEmail={user.email!} 
       totalFunds={totalFunds} 
       transactions={transactions || []} 
     />
+    </AppShell>
   )
 }
