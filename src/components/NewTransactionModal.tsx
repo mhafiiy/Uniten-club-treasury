@@ -38,6 +38,8 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
   const [club, setClub] = useState(allowedClubs[0] ?? '')
   const [category, setCategory] = useState(CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
+  const [receipt, setReceipt] = useState<File | null>(null)
+  const [formError, setFormError] = useState('')
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -71,6 +73,9 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
       alert('You are not authorised to manage transactions for this club.')
       return
     }
+    if (!transactionToEdit && type === 'EXPENSE' && !receipt) { setFormError('Expense receipt is required.'); return }
+    if (receipt && (receipt.size === 0 || receipt.size > 10485760 || !['application/pdf','image/jpeg','image/png','image/webp'].includes(receipt.type))) { setFormError('Receipt must be PDF, JPG, PNG or WebP, up to 10 MB.'); return }
+    setFormError('')
     setLoading(true)
 
     if (transactionToEdit) {
@@ -94,7 +99,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
         router.refresh()
       }
     } else {
-      const { error } = await supabase.from('transactions').insert([
+      const { data: inserted, error } = await supabase.from('transactions').insert([
         {
           description,
           amount: parseFloat(amount),
@@ -103,13 +108,22 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
           category,
           user_email: userEmail,
         },
-      ])
+      ]).select('id').single()
 
+      if (!error && inserted && receipt) {
+        const extension = receipt.type === 'application/pdf' ? 'pdf' : receipt.type === 'image/jpeg' ? 'jpg' : receipt.type === 'image/png' ? 'png' : 'webp'
+        const path = inserted.id + '/' + crypto.randomUUID() + '.' + extension
+        const uploaded = await supabase.storage.from('treasury-receipts').upload(path, receipt, { contentType: receipt.type, upsert: false })
+        if (uploaded.error) { setFormError('Transaction saved but receipt upload failed: ' + uploaded.error.message + '. Contact an administrator.'); setLoading(false); return }
+        const linked = await supabase.from('transaction_receipts').insert({ transaction_id: inserted.id, storage_path: path, original_filename: receipt.name, content_type: receipt.type, file_size_bytes: receipt.size })
+        if (linked.error) { setFormError('Transaction saved but receipt linking failed: ' + linked.error.message + '. Contact an administrator.'); setLoading(false); return }
+      }
       setLoading(false)
 
       if (error) {
-        alert('Error saving transaction: ' + error.message)
+        setFormError('Error saving transaction: ' + error.message)
       } else {
+        setReceipt(null)
         setDescription('')
         setAmount('')
         setType('EXPENSE')
@@ -206,6 +220,12 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
             </div>
           </div>
 
+          {!transactionToEdit && <div>
+            <label htmlFor="receipt-upload" className="block text-sm font-medium text-slate-700 mb-1">Receipt {type === 'EXPENSE' ? '(required)' : '(optional)'}</label>
+            <input id="receipt-upload" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required={type === 'EXPENSE'} onChange={event => setReceipt(event.target.files?.[0] ?? null)} className="block w-full text-sm text-slate-700" />
+            <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG or WebP, up to 10 MB.</p>
+          </div>}
+          {formError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
