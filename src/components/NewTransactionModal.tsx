@@ -130,7 +130,12 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
       setLoading(false)
 
       if (error) {
-        setFormError('Transaction not saved: ' + error.message + (storagePath ? ' The uploaded receipt is staged and may require administrator cleanup.' : ''))
+        let cleanupMessage = ''
+        if (storagePath) {
+          const cleanup = await supabase.storage.from('treasury-receipts').remove([storagePath])
+          if (cleanup.error) cleanupMessage = ' Receipt cleanup failed; contact an administrator.'
+        }
+        setFormError('Transaction not saved: ' + error.message + cleanupMessage)
       } else {
         setReceipt(null)
         setDescription('')
