@@ -40,11 +40,16 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   return (
     <AppShell email={user.email ?? ''}>
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Financial records for clubs you are authorised to access.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Financial records for clubs you are authorised to access.
+            </p>
+          </div>
+          <a href="/" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+            + New transaction (Dashboard)
+          </a>
         </div>
 
         {error && (
@@ -123,8 +128,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           </div>
         </section>
         <p className="text-sm text-muted-foreground">
-          New transaction entry and receipt uploads are being developed. Expense receipts will be mandatory; income receipts will be optional.
-          Until then, use the existing Dashboard to record transactions.
+          The existing Dashboard remains the transaction-entry point. Receipt uploads and mandatory expense-receipt enforcement are not yet available; do not treat the current entry form as receipt-compliant.
         </p>
       </main>
     </AppShell>
