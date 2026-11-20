@@ -43,7 +43,8 @@ export default async function DashboardPage() {
   return (
     <AppShell email={user.email!}>
       <DashboardClientWrapper 
-      userEmail={user.email!}\n      allowedClubs={(manageableClubs ?? []).map((club) => club.name)} 
+      userEmail={user.email!}
+      allowedClubs={(manageableClubs ?? []).map((club) => club.name)} 
       totalFunds={totalFunds} 
       transactions={transactions || []} 
     />
