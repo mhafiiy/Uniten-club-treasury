@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import AppShell from '@/components/app-shell'
+import ReceiptLink from '@/components/ReceiptLink'
 
 type Transaction = {
   id: string
@@ -32,6 +33,10 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     .order('created_at', { ascending: false })
 
   const transactions = (data ?? []) as Transaction[]
+  const { data: receiptRows, error: receiptError } = await supabase
+    .from('transaction_receipts')
+    .select('transaction_id, storage_path')
+  const receiptPaths = new Map((receiptRows ?? []).map((receipt) => [receipt.transaction_id, receipt.storage_path]))
   const active = transactions.filter((item) => !item.voided_at)
   const visible = transactions.filter((item) => (typeFilter === 'ALL' || item.type === typeFilter) && (!search || [item.description, item.club_name ?? '', item.category ?? ''].some((value) => value.toLocaleLowerCase().includes(search))))
   const income = active.filter((item) => item.type === 'INCOME').reduce((sum, item) => sum + Number(item.amount), 0)
@@ -52,7 +57,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           </a>
         </div>
 
-        {error && (
+        {(error || receiptError) && (
           <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm text-destructive">
             Transactions could not be loaded. Please try again later.
           </div>
@@ -101,6 +106,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                   <th scope="col" className="px-5 py-3 font-medium">Club</th>
                   <th scope="col" className="px-5 py-3 font-medium">Type</th>
                   <th scope="col" className="px-5 py-3 text-right font-medium">Amount</th>
+                  <th scope="col" className="px-5 py-3 font-medium">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -116,6 +122,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                     <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums">
                       {item.type === 'INCOME' ? '+' : '−'}{money(Number(item.amount))}
                     </td>
+                    <td className="px-5 py-3">{receiptPaths.get(item.id) ? <ReceiptLink path={receiptPaths.get(item.id)!} /> : <span className="text-muted-foreground">{item.type === 'EXPENSE' ? 'Legacy / missing' : '—'}</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -128,7 +135,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           </div>
         </section>
         <p className="text-sm text-muted-foreground">
-          The existing Dashboard remains the transaction-entry point. Receipt uploads and mandatory expense-receipt enforcement are not yet available; do not treat the current entry form as receipt-compliant.
+          Create transactions from the Dashboard. New expenses require receipts. Older transactions may not have supporting files.
         </p>
       </main>
     </AppShell>
