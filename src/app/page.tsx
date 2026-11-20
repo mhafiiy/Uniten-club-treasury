@@ -12,6 +12,23 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
+  // Only club treasurers and administrators may create transactions.
+  const { data: memberships } = await supabase
+    .from('members')
+    .select('club_id, role')
+    .eq('user_id', user.id)
+
+  const canManageAll = memberships?.some((membership) => membership.role === 'admin') ?? false
+  const treasurerClubIds = (memberships ?? [])
+    .filter((membership) => membership.role === 'treasurer' && membership.club_id)
+    .map((membership) => membership.club_id as string)
+
+  const { data: manageableClubs } = canManageAll
+    ? await supabase.from('clubs').select('id, name').order('name')
+    : treasurerClubIds.length > 0
+      ? await supabase.from('clubs').select('id, name').in('id', treasurerClubIds).order('name')
+      : { data: [] as { id: string; name: string }[] }
+
   // Fetch financial data securely from Supabase
   const { data: transactions } = await supabase
     .from('transactions')
@@ -26,7 +43,7 @@ export default async function DashboardPage() {
   return (
     <AppShell email={user.email!}>
       <DashboardClientWrapper 
-      userEmail={user.email!} 
+      userEmail={user.email!}\n      allowedClubs={(manageableClubs ?? []).map((club) => club.name)} 
       totalFunds={totalFunds} 
       transactions={transactions || []} 
     />
