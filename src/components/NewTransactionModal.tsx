@@ -4,14 +4,6 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
-const CLUB_LIST = [
-  "Persatuan Silat Seni Gayong",
-  "Sekretariat Rakan Muda",
-  "Energy, Economics & Environmental Student Club",
-  "Student Representative Council",
-  "General Treasury"
-]
-
 const CATEGORY_LIST = [
   "Venue & Space Rental",
   "Equipment & Hardware",
@@ -35,14 +27,15 @@ interface ModalProps {
   isOpen: boolean
   onClose: () => void
   userEmail: string
+  allowedClubs: string[]
   transactionToEdit?: Transaction | null
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit }: ModalProps) {
+export default function NewTransactionModal({ isOpen, onClose, userEmail, allowedClubs, transactionToEdit }: ModalProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(CLUB_LIST[0])
+  const [club, setClub] = useState(allowedClubs[0] ?? '')
   const [category, setCategory] = useState(CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -58,22 +51,26 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
       setDescription(transactionToEdit.description)
       setAmount(transactionToEdit.amount.toString())
       setType(transactionToEdit.type)
-      setClub(transactionToEdit.club_name || CLUB_LIST[0])
+      setClub(transactionToEdit.club_name || allowedClubs[0] || '')
       setCategory(transactionToEdit.category || CATEGORY_LIST[0])
     } else {
       setDescription('')
       setAmount('')
       setType('EXPENSE')
-      setClub(CLUB_LIST[0])
+      setClub(allowedClubs[0] ?? '')
       setCategory(CATEGORY_LIST[0])
     }
-  }, [transactionToEdit, isOpen])
+  }, [transactionToEdit, isOpen, allowedClubs])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!allowedClubs.includes(club)) {
+      alert('You are not authorised to manage transactions for this club.')
+      return
+    }
     setLoading(true)
 
     if (transactionToEdit) {
@@ -116,7 +113,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
         setDescription('')
         setAmount('')
         setType('EXPENSE')
-        setClub(CLUB_LIST[0])
+        setClub(allowedClubs[0] ?? '')
         setCategory(CATEGORY_LIST[0])
         onClose()
         router.refresh()
@@ -147,7 +144,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               onChange={(e) => setClub(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm bg-white"
             >
-              {CLUB_LIST.map((clubName) => (
+              {allowedClubs.map((clubName) => (
                 <option key={clubName} value={clubName}>
                   {clubName}
                 </option>
@@ -219,7 +216,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || allowedClubs.length === 0}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               {loading ? 'Saving...' : transactionToEdit ? 'Save Changes' : 'Add Transaction'}
