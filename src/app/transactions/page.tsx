@@ -16,7 +16,10 @@ type Transaction = {
 const money = (amount: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(amount)
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({ searchParams }: { searchParams: Promise<{ q?: string; type?: string }> }) {
+  const params = await searchParams
+  const search = (params.q ?? '').trim().slice(0, 100).toLocaleLowerCase()
+  const typeFilter = params.type === 'INCOME' || params.type === 'EXPENSE' ? params.type : 'ALL'
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) redirect('/login')
@@ -30,6 +33,7 @@ export default async function TransactionsPage() {
 
   const transactions = (data ?? []) as Transaction[]
   const active = transactions.filter((item) => !item.voided_at)
+  const visible = transactions.filter((item) => (typeFilter === 'ALL' || item.type === typeFilter) && (!search || [item.description, item.club_name ?? '', item.category ?? ''].some((value) => value.toLocaleLowerCase().includes(search))))
   const income = active.filter((item) => item.type === 'INCOME').reduce((sum, item) => sum + Number(item.amount), 0)
   const expenses = active.filter((item) => item.type === 'EXPENSE').reduce((sum, item) => sum + Number(item.amount), 0)
 
@@ -63,6 +67,22 @@ export default async function TransactionsPage() {
         </div>
 
         <section className="overflow-hidden rounded-xl border bg-card" aria-label="Transaction history">
+          <form action="/transactions" method="get" className="flex flex-wrap items-end gap-3 border-b px-5 py-4">
+            <label className="flex min-w-[180px] flex-1 flex-col gap-1 text-sm">
+              Search transactions
+              <input name="q" type="search" defaultValue={params.q ?? ''} maxLength={100} placeholder="Description, club or category" className="rounded-md border bg-background px-3 py-2" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Transaction type
+              <select name="type" defaultValue={typeFilter} className="rounded-md border bg-background px-3 py-2">
+                <option value="ALL">All types</option>
+                <option value="INCOME">Income</option>
+                <option value="EXPENSE">Expense</option>
+              </select>
+            </label>
+            <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Filter</button>
+            <a href="/transactions" className="rounded-md border px-4 py-2 text-sm">Clear</a>
+          </form>
           <div className="border-b px-5 py-4">
             <h2 className="font-semibold">Transaction history</h2>
             <p className="text-sm text-muted-foreground">Voided entries are retained for accountability but excluded from totals.</p>
@@ -79,7 +99,7 @@ export default async function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {transactions.map((item) => (
+                {visible.map((item) => (
                   <tr key={item.id} className={item.voided_at ? 'opacity-60' : ''}>
                     <td className="whitespace-nowrap px-5 py-3">{item.created_at ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(item.created_at)) : '—'}</td>
                     <td className="px-5 py-3">
@@ -95,9 +115,9 @@ export default async function TransactionsPage() {
                 ))}
               </tbody>
             </table>
-            {!error && transactions.length === 0 && (
+            {!error && visible.length === 0 && (
               <p className="p-8 text-center text-sm text-muted-foreground">
-                No transactions are available for your account.
+                No matching transactions are available for your account.
               </p>
             )}
           </div>
