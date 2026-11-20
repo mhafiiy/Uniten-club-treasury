@@ -50,12 +50,16 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
   /* eslint-disable react-hooks/set-state-in-effect -- Pre-existing modal form reset on edit/open; refactor separately. */
   useEffect(() => {
     if (transactionToEdit) {
+      setReceipt(null)
+      setFormError('')
       setDescription(transactionToEdit.description)
       setAmount(transactionToEdit.amount.toString())
       setType(transactionToEdit.type)
       setClub(transactionToEdit.club_name || allowedClubs[0] || '')
       setCategory(transactionToEdit.category || CATEGORY_LIST[0])
     } else {
+      setReceipt(null)
+      setFormError('')
       setDescription('')
       setAmount('')
       setType('EXPENSE')
@@ -75,6 +79,8 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
     }
     if (!transactionToEdit && type === 'EXPENSE' && !receipt) { setFormError('Expense receipt is required.'); return }
     if (receipt && (receipt.size === 0 || receipt.size > 10485760 || !['application/pdf','image/jpeg','image/png','image/webp'].includes(receipt.type))) { setFormError('Receipt must be PDF, JPG, PNG or WebP, up to 10 MB.'); return }
+    if (loading) return
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 || Math.round(Number(amount) * 100) !== Number(amount) * 100) { setFormError('Enter a valid positive amount with up to two decimal places.'); return }
     setFormError('')
     setLoading(true)
 
@@ -121,14 +127,10 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
         p_content_type: receipt?.type ?? null,
         p_file_size_bytes: receipt?.size ?? null,
       })
-      if (error && storagePath) {
-        setFormError('Transaction not saved: ' + error.message + '. The staged receipt may require cleanup by an administrator.')
-      }
-
       setLoading(false)
 
       if (error) {
-        setFormError('Error saving transaction: ' + error.message)
+        setFormError('Transaction not saved: ' + error.message + (storagePath ? ' The uploaded receipt is staged and may require administrator cleanup.' : ''))
       } else {
         setReceipt(null)
         setDescription('')
@@ -150,7 +152,8 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
             {transactionToEdit ? 'Edit Transaction' : 'New Financial Transaction'}
           </h2>
           <button 
-            onClick={onClose}
+            onClick={() => { if (!loading) onClose() }}
+            disabled={loading}
             className="text-slate-400 hover:text-slate-600 font-bold text-lg"
           >
             ✕
@@ -237,6 +240,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
             <button
               type="button"
               onClick={onClose}
+              disabled={loading}
               className="px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
             >
               Cancel
