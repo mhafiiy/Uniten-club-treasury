@@ -51,13 +51,13 @@ export default async function TransactionsPage() {
 
         <div className="grid gap-4 sm:grid-cols-3">
           {[
-            { label: 'Total income', value: income },
-            { label: 'Total expenses', value: expenses },
-            { label: 'Net balance', value: income - expenses },
+            { label: 'Total income', value: income, sign: '+' },
+            { label: 'Total expenses', value: expenses, sign: '−' },
+            { label: 'Net balance', value: income - expenses, sign: '' },
           ].map((summary) => (
             <div key={summary.label} className="rounded-xl border bg-card p-5">
               <p className="text-sm text-muted-foreground">{summary.label}</p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums">{money(summary.value)}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.sign}{money(summary.value)}</p>
             </div>
           ))}
         </div>
