@@ -205,7 +205,6 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
                       <button
                         onClick={() => handleDelete(tx.id)}
                         disabled={isDeleting === tx.id || !tx.club_name || !allowedClubs.includes(tx.club_name)}
-                        disabled={isDeleting === tx.id}
                         className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
                       >
                         {isDeleting === tx.id ? '...' : 'Delete'}
