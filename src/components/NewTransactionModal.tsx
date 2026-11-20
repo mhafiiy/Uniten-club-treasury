@@ -99,25 +99,32 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, allowe
         router.refresh()
       }
     } else {
-      const { data: inserted, error } = await supabase.from('transactions').insert([
-        {
-          description,
-          amount: parseFloat(amount),
-          type,
-          club_name: club,
-          category,
-          user_email: userEmail,
-        },
-      ]).select('id').single()
-
-      if (!error && inserted && receipt) {
+      const transactionId = crypto.randomUUID()
+      let storagePath: string | null = null
+      if (receipt) {
         const extension = receipt.type === 'application/pdf' ? 'pdf' : receipt.type === 'image/jpeg' ? 'jpg' : receipt.type === 'image/png' ? 'png' : 'webp'
-        const path = inserted.id + '/' + crypto.randomUUID() + '.' + extension
-        const uploaded = await supabase.storage.from('treasury-receipts').upload(path, receipt, { contentType: receipt.type, upsert: false })
-        if (uploaded.error) { setFormError('Transaction saved but receipt upload failed: ' + uploaded.error.message + '. Contact an administrator.'); setLoading(false); return }
-        const linked = await supabase.from('transaction_receipts').insert({ transaction_id: inserted.id, storage_path: path, original_filename: receipt.name, content_type: receipt.type, file_size_bytes: receipt.size })
-        if (linked.error) { setFormError('Transaction saved but receipt linking failed: ' + linked.error.message + '. Contact an administrator.'); setLoading(false); return }
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) { setFormError('Please sign in again before uploading a receipt.'); setLoading(false); return }
+        storagePath = user.id + '/' + transactionId + '/' + crypto.randomUUID() + '.' + extension
+        const uploaded = await supabase.storage.from('treasury-receipts').upload(storagePath, receipt, { contentType: receipt.type, upsert: false })
+        if (uploaded.error) { setFormError('Receipt upload failed: ' + uploaded.error.message); setLoading(false); return }
       }
+      const { error } = await supabase.rpc('create_treasury_transaction', {
+        p_id: transactionId,
+        p_description: description,
+        p_amount: Number(amount),
+        p_type: type,
+        p_club_name: club,
+        p_category: category,
+        p_storage_path: storagePath,
+        p_original_filename: receipt?.name ?? null,
+        p_content_type: receipt?.type ?? null,
+        p_file_size_bytes: receipt?.size ?? null,
+      })
+      if (error && storagePath) {
+        setFormError('Transaction not saved: ' + error.message + '. The staged receipt may require cleanup by an administrator.')
+      }
+
       setLoading(false)
 
       if (error) {
