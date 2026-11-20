@@ -18,11 +18,12 @@ interface Transaction {
 
 interface Props {
   userEmail: string
+  allowedClubs: string[]
   totalFunds: number
   transactions: Transaction[]
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, allowedClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -64,11 +65,13 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
   }
 
   const handleOpenCreate = () => {
+    if (allowedClubs.length === 0) return
     setEditingTx(null)
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (tx: Transaction) => {
+    if (!tx.club_name || !allowedClubs.includes(tx.club_name)) return
     setEditingTx(tx)
     setIsModalOpen(true)
   }
@@ -136,6 +139,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
 
             <button 
               onClick={handleOpenCreate}
+              disabled={allowedClubs.length === 0}
+              title={allowedClubs.length === 0 ? 'Only authorised club treasurers or administrators can create transactions' : undefined}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap"
             >
               + New Transaction
@@ -192,12 +197,14 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(tx)}
+                        disabled={!tx.club_name || !allowedClubs.includes(tx.club_name)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(tx.id)}
+                        disabled={isDeleting === tx.id || !tx.club_name || !allowedClubs.includes(tx.club_name)}
                         disabled={isDeleting === tx.id}
                         className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
                       >
@@ -216,7 +223,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
       <NewTransactionModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        userEmail={userEmail} 
+        userEmail={userEmail}
+        allowedClubs={allowedClubs} 
         transactionToEdit={editingTx}
       />
     </div>
