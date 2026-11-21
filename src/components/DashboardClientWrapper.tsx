@@ -48,7 +48,9 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
   }, 0)
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Void this transaction? It will be retained for audit history but excluded from balances.')) return
+    const reason = window.prompt('Reason for voiding this transaction? The record and receipt will be retained for audit history.')
+    if (reason === null) return
+    if (!reason.trim()) { alert('A reason is required to void a transaction.'); return }
 
     setIsDeleting(id)
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -58,16 +60,19 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
       return
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
-      .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: 'Voided by authorised user' })
+      .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: reason.trim().slice(0, 500) })
       .eq('id', id)
       .is('voided_at', null)
+      .select('id')
 
     setIsDeleting(null)
 
     if (error) {
       alert('Error deleting transaction: ' + error.message)
+    } else if (!data || data.length !== 1) {
+      alert('Transaction was not voided. Please refresh and check your permissions.')
     } else {
       router.refresh()
     }
