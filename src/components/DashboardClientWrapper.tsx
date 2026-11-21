@@ -70,7 +70,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
     setIsDeleting(null)
 
     if (error) {
-      alert('Error deleting transaction: ' + error.message)
+      alert('Error voiding transaction: ' + error.message)
     } else if (!data || data.length !== 1) {
       alert('Transaction was not voided. Please refresh and check your permissions.')
     } else {
@@ -85,7 +85,7 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
   }
 
   const handleOpenEdit = (tx: Transaction) => {
-    if (!tx.club_name || !allowedClubs.includes(tx.club_name)) return
+    if (tx.voided_at || !tx.club_name || !allowedClubs.includes(tx.club_name)) return
     setEditingTx(tx)
     setIsModalOpen(true)
   }
