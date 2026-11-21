@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
 
   // Calculate automated treasury balance
-  const totalFunds = transactions?.reduce((acc, curr) => {
+  const totalFunds = transactions?.filter((tx) => !tx.voided_at).reduce((acc, curr) => {
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0) || 0
 
