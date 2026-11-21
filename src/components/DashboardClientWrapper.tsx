@@ -51,10 +51,16 @@ export default function DashboardClientWrapper({ userEmail, transactions, allowe
     if (!window.confirm('Void this transaction? It will be retained for audit history but excluded from balances.')) return
 
     setIsDeleting(id)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      setIsDeleting(null)
+      alert('Please sign in again before voiding a transaction.')
+      return
+    }
 
     const { error } = await supabase
       .from('transactions')
-      .update({ voided_at: new Date().toISOString(), void_reason: 'Voided by authorised user' })
+      .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: 'Voided by authorised user' })
       .eq('id', id)
       .is('voided_at', null)
 
