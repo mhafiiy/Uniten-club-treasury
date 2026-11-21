@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import AppShell from '@/components/app-shell'
 import ReceiptLink from '@/components/ReceiptLink'
@@ -52,9 +53,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
               Financial records for clubs you are authorised to access.
             </p>
           </div>
-          <a href="/" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          <Link href="/" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
             + New transaction (Dashboard)
-          </a>
+          </Link>
         </div>
 
         {(error || receiptError) && (
