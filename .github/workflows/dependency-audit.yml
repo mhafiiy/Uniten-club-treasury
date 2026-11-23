@@ -1,0 +1,26 @@
+name: Review npm dependency vulnerabilities
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Audit production dependencies (informational)
+        run: |
+          npm audit --omit=dev --audit-level=moderate || true
+      - name: Audit all dependencies (informational)
+        run: |
+          npm audit --audit-level=moderate || true

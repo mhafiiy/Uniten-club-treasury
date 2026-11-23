@@ -4,14 +4,6 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 
-const CLUB_LIST = [
-  "Persatuan Silat Seni Gayong",
-  "Sekretariat Rakan Muda",
-  "Energy, Economics & Environmental Student Club",
-  "Student Representative Council",
-  "General Treasury"
-]
-
 const CATEGORY_LIST = [
   "Venue & Space Rental",
   "Equipment & Hardware",
@@ -35,16 +27,19 @@ interface ModalProps {
   isOpen: boolean
   onClose: () => void
   userEmail: string
+  allowedClubs: string[]
   transactionToEdit?: Transaction | null
 }
 
-export default function NewTransactionModal({ isOpen, onClose, userEmail, transactionToEdit }: ModalProps) {
+export default function NewTransactionModal({ isOpen, onClose, userEmail, allowedClubs, transactionToEdit }: ModalProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE')
-  const [club, setClub] = useState(CLUB_LIST[0])
+  const [club, setClub] = useState(allowedClubs[0] ?? '')
   const [category, setCategory] = useState(CATEGORY_LIST[0])
   const [loading, setLoading] = useState(false)
+  const [receipt, setReceipt] = useState<File | null>(null)
+  const [formError, setFormError] = useState('')
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -55,25 +50,38 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
   /* eslint-disable react-hooks/set-state-in-effect -- Pre-existing modal form reset on edit/open; refactor separately. */
   useEffect(() => {
     if (transactionToEdit) {
+      setReceipt(null)
+      setFormError('')
       setDescription(transactionToEdit.description)
       setAmount(transactionToEdit.amount.toString())
       setType(transactionToEdit.type)
-      setClub(transactionToEdit.club_name || CLUB_LIST[0])
+      setClub(transactionToEdit.club_name || allowedClubs[0] || '')
       setCategory(transactionToEdit.category || CATEGORY_LIST[0])
     } else {
+      setReceipt(null)
+      setFormError('')
       setDescription('')
       setAmount('')
       setType('EXPENSE')
-      setClub(CLUB_LIST[0])
+      setClub(allowedClubs[0] ?? '')
       setCategory(CATEGORY_LIST[0])
     }
-  }, [transactionToEdit, isOpen])
+  }, [transactionToEdit, isOpen, allowedClubs])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!allowedClubs.includes(club)) {
+      alert('You are not authorised to manage transactions for this club.')
+      return
+    }
+    if (!transactionToEdit && type === 'EXPENSE' && !receipt) { setFormError('Expense receipt is required.'); return }
+    if (receipt && (receipt.size === 0 || receipt.size > 10485760 || !['application/pdf','image/jpeg','image/png','image/webp'].includes(receipt.type))) { setFormError('Receipt must be PDF, JPG, PNG or WebP, up to 10 MB.'); return }
+    if (loading) return
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0 || Math.round(Number(amount) * 100) !== Number(amount) * 100) { setFormError('Enter a valid positive amount with up to two decimal places.'); return }
+    setFormError('')
     setLoading(true)
 
     if (transactionToEdit) {
@@ -97,26 +105,43 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
         router.refresh()
       }
     } else {
-      const { error } = await supabase.from('transactions').insert([
-        {
-          description,
-          amount: parseFloat(amount),
-          type,
-          club_name: club,
-          category,
-          user_email: userEmail,
-        },
-      ])
-
+      const transactionId = crypto.randomUUID()
+      let storagePath: string | null = null
+      if (receipt) {
+        const extension = receipt.type === 'application/pdf' ? 'pdf' : receipt.type === 'image/jpeg' ? 'jpg' : receipt.type === 'image/png' ? 'png' : 'webp'
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) { setFormError('Please sign in again before uploading a receipt.'); setLoading(false); return }
+        storagePath = user.id + '/' + transactionId + '/' + crypto.randomUUID() + '.' + extension
+        const uploaded = await supabase.storage.from('treasury-receipts').upload(storagePath, receipt, { contentType: receipt.type, upsert: false })
+        if (uploaded.error) { setFormError('Receipt upload failed: ' + uploaded.error.message); setLoading(false); return }
+      }
+      const { error } = await supabase.rpc('create_treasury_transaction', {
+        p_id: transactionId,
+        p_description: description,
+        p_amount: Number(amount),
+        p_type: type,
+        p_club_name: club,
+        p_category: category,
+        p_storage_path: storagePath,
+        p_original_filename: receipt?.name ?? null,
+        p_content_type: receipt?.type ?? null,
+        p_file_size_bytes: receipt?.size ?? null,
+      })
       setLoading(false)
 
       if (error) {
-        alert('Error saving transaction: ' + error.message)
+        let cleanupMessage = ''
+        if (storagePath) {
+          const cleanup = await supabase.storage.from('treasury-receipts').remove([storagePath])
+          if (cleanup.error) cleanupMessage = ' Receipt cleanup failed; contact an administrator.'
+        }
+        setFormError('Transaction not saved: ' + error.message + cleanupMessage)
       } else {
+        setReceipt(null)
         setDescription('')
         setAmount('')
         setType('EXPENSE')
-        setClub(CLUB_LIST[0])
+        setClub(allowedClubs[0] ?? '')
         setCategory(CATEGORY_LIST[0])
         onClose()
         router.refresh()
@@ -132,7 +157,8 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
             {transactionToEdit ? 'Edit Transaction' : 'New Financial Transaction'}
           </h2>
           <button 
-            onClick={onClose}
+            onClick={() => { if (!loading) onClose() }}
+            disabled={loading}
             className="text-slate-400 hover:text-slate-600 font-bold text-lg"
           >
             ✕
@@ -147,7 +173,7 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
               onChange={(e) => setClub(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 text-sm bg-white"
             >
-              {CLUB_LIST.map((clubName) => (
+              {allowedClubs.map((clubName) => (
                 <option key={clubName} value={clubName}>
                   {clubName}
                 </option>
@@ -209,17 +235,24 @@ export default function NewTransactionModal({ isOpen, onClose, userEmail, transa
             </div>
           </div>
 
+          {!transactionToEdit && <div>
+            <label htmlFor="receipt-upload" className="block text-sm font-medium text-slate-700 mb-1">Receipt {type === 'EXPENSE' ? '(required)' : '(optional)'}</label>
+            <input id="receipt-upload" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required={type === 'EXPENSE'} onChange={event => setReceipt(event.target.files?.[0] ?? null)} className="block w-full text-sm text-slate-700" />
+            <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG or WebP, up to 10 MB.</p>
+          </div>}
+          {formError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
+              disabled={loading}
               className="px-4 py-2 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || allowedClubs.length === 0}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               {loading ? 'Saving...' : transactionToEdit ? 'Save Changes' : 'Add Transaction'}

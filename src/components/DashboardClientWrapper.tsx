@@ -14,15 +14,17 @@ interface Transaction {
   user_email: string
   club_name?: string
   category?: string
+  voided_at?: string | null
 }
 
 interface Props {
   userEmail: string
+  allowedClubs: string[]
   totalFunds: number
   transactions: Transaction[]
 }
 
-export default function DashboardClientWrapper({ userEmail, transactions }: Props) {
+export default function DashboardClientWrapper({ userEmail, transactions, allowedClubs }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [filterClub, setFilterClub] = useState('All')
@@ -40,35 +42,50 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
     filterClub === 'All' ? true : (tx.club_name || 'Uncategorized') === filterClub
   )
 
-  const displayFunds = filteredTransactions.reduce((acc, curr) => {
+  const activeTransactions = filteredTransactions.filter(tx => !tx.voided_at)
+  const displayFunds = activeTransactions.reduce((acc, curr) => {
     return curr.type === 'INCOME' ? acc + Number(curr.amount) : acc - Number(curr.amount)
   }, 0)
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this transaction?')) return
+    const reason = window.prompt('Reason for voiding this transaction? The record and receipt will be retained for audit history.')
+    if (reason === null) return
+    if (!reason.trim()) { alert('A reason is required to void a transaction.'); return }
 
     setIsDeleting(id)
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      setIsDeleting(null)
+      alert('Please sign in again before voiding a transaction.')
+      return
+    }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
-      .delete()
+      .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: reason.trim().slice(0, 500) })
       .eq('id', id)
+      .is('voided_at', null)
+      .select('id')
 
     setIsDeleting(null)
 
     if (error) {
-      alert('Error deleting transaction: ' + error.message)
+      alert('Error voiding transaction: ' + error.message)
+    } else if (!data || data.length !== 1) {
+      alert('Transaction was not voided. Please refresh and check your permissions.')
     } else {
       router.refresh()
     }
   }
 
   const handleOpenCreate = () => {
+    if (allowedClubs.length === 0) return
     setEditingTx(null)
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (tx: Transaction) => {
+    if (tx.voided_at || !tx.club_name || !allowedClubs.includes(tx.club_name)) return
     setEditingTx(tx)
     setIsModalOpen(true)
   }
@@ -79,7 +96,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
       return
     }
 
-    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By']
+    const headers = ['Date', 'Organization', 'Category', 'Description', 'Type', 'Amount (RM)', 'Recorded By', 'Status']
     const rows = filteredTransactions.map(tx => [
       new Date(tx.created_at).toLocaleDateString(),
       `"${tx.club_name || 'Uncategorized'}"`,
@@ -87,7 +104,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
       `"${tx.description.replace(/"/g, '""')}"`,
       tx.type,
       tx.amount,
-      tx.user_email
+      tx.user_email,
+      tx.voided_at ? 'Voided' : 'Active'
     ])
 
     const csvContent = [
@@ -136,6 +154,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
 
             <button 
               onClick={handleOpenCreate}
+              disabled={allowedClubs.length === 0}
+              title={allowedClubs.length === 0 ? 'Only authorised club treasurers or administrators can create transactions' : undefined}
               className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm whitespace-nowrap"
             >
               + New Transaction
@@ -163,7 +183,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
             <h3 className="font-medium text-slate-500 text-sm">Recorded Transactions</h3>
-            <p className="text-3xl font-bold text-slate-900 mt-2">{filteredTransactions.length}</p>
+            <p className="text-3xl font-bold text-slate-900 mt-2">{activeTransactions.length}</p>
           </div>
         </div>
 
@@ -179,7 +199,7 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
               {filteredTransactions.map((tx) => (
                 <div key={tx.id} className="py-4 flex justify-between items-center hover:bg-slate-50 px-2 rounded-lg transition-colors -mx-2 group">
                   <div>
-                    <p className="font-medium text-slate-900">{tx.description}</p>
+                    <p className="font-medium text-slate-900">{tx.description}{tx.voided_at ? ' (VOIDED)' : ''}</p>
                     <p className="text-xs text-slate-500">
                       {new Date(tx.created_at).toLocaleDateString()} • {tx.club_name || 'Uncategorized'} • <span className="text-slate-700 font-semibold">{tx.category || 'General Administration'}</span> • {tx.user_email}
                     </p>
@@ -192,16 +212,17 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2 transition-opacity">
                       <button
                         onClick={() => handleOpenEdit(tx)}
+                        disabled={!!tx.voided_at || !tx.club_name || !allowedClubs.includes(tx.club_name)}
                         className="text-slate-600 hover:text-slate-900 text-sm font-medium px-2 py-1 bg-slate-100 rounded"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(tx.id)}
-                        disabled={isDeleting === tx.id}
+                        disabled={!!tx.voided_at || isDeleting === tx.id || !tx.club_name || !allowedClubs.includes(tx.club_name)}
                         className="text-red-500 hover:text-red-700 text-sm font-medium disabled:opacity-50 px-2 py-1 bg-red-50 rounded"
                       >
-                        {isDeleting === tx.id ? '...' : 'Delete'}
+                        {isDeleting === tx.id ? '...' : 'Void'}
                       </button>
                     </div>
                   </div>
@@ -216,7 +237,8 @@ export default function DashboardClientWrapper({ userEmail, transactions }: Prop
       <NewTransactionModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        userEmail={userEmail} 
+        userEmail={userEmail}
+        allowedClubs={allowedClubs} 
         transactionToEdit={editingTx}
       />
     </div>
