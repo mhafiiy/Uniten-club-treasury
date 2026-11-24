@@ -4,6 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 
 const money = (n: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' }).format(n)
 
+// Confirmed historical aliases; reporting only, never used to grant access.
+function canonicalName(name: string | null) {
+  if (name === 'Energy, Economics & Environmental Student Club') return '3ESC'
+  if (name === 'Persatuan Silat Seni Gayong') return 'PSSGM UNITEN'
+  return name
+}
+
 export default async function ClubsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams
   const search = typeof q === 'string' ? q.trim().slice(0, 100) : ''
@@ -22,7 +29,7 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
   const { data: transactions, error: transactionError, count } = await supabase.from('transactions')
     .select('club_name, amount, type', { count: 'exact' }).is('voided_at', null)
   const incomplete = !!transactionError || count === null || count !== (transactions ?? []).length
-  const unmatched = admin && !incomplete && !clubError && !membershipError ? (transactions ?? []).filter(t => !(clubs ?? []).some(c => c.name === t.club_name)) : []
+  const unmatched = admin && !incomplete && !clubError && !membershipError ? (transactions ?? []).filter(t => !(clubs ?? []).some(c => c.name === canonicalName(t.club_name))) : []
   const unmatchedNet = unmatched.reduce((sum, t) => sum + (t.type === 'INCOME' ? Number(t.amount) : t.type === 'EXPENSE' ? -Number(t.amount) : 0), 0)
   const visible = (clubs ?? []).filter(c => [c.name, c.category ?? ''].some(v => v.toLowerCase().includes(search.toLowerCase())))
   return (
@@ -39,7 +46,7 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
         <p className="text-sm text-muted-foreground">{visible.length} matching clubs</p>
         <div className="grid gap-4 md:grid-cols-2">
           {visible.map(club => {
-            const rows = (transactions ?? []).filter(t => t.club_name === club.name)
+            const rows = (transactions ?? []).filter(t => canonicalName(t.club_name) === club.name)
             const income = rows.filter(t => t.type === 'INCOME').reduce((s,t) => s + Number(t.amount), 0)
             const expense = rows.filter(t => t.type === 'EXPENSE').reduce((s,t) => s + Number(t.amount), 0)
             const ambiguous = (clubs ?? []).filter(c => c.name === club.name).length !== 1
@@ -54,7 +61,7 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
           })}
         </div>
         {!membershipError && !clubError && !visible.length && <p className="rounded-lg border p-8 text-center text-sm text-muted-foreground">No matching authorised clubs.</p>}
-        <p className="text-xs text-muted-foreground">Totals include only transactions visible under your existing permissions and exclude voided entries. Club registration and membership editing are not enabled in this release.</p>
+        <p className="text-xs text-muted-foreground">Totals include only transactions visible under your existing permissions, reconcile confirmed historical club names, and exclude voided entries. Historical names remain unchanged in transaction records. Club registration and membership editing are not enabled in this release.</p>
       </main>
     </AppShell>
   )
