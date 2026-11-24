@@ -22,6 +22,8 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
   const { data: transactions, error: transactionError, count } = await supabase.from('transactions')
     .select('club_name, amount, type', { count: 'exact' }).is('voided_at', null)
   const incomplete = !!transactionError || count === null || count !== (transactions ?? []).length
+  const unmatched = admin && !incomplete && !clubError && !membershipError ? (transactions ?? []).filter(t => !(clubs ?? []).some(c => c.name === t.club_name)) : []
+  const unmatchedNet = unmatched.reduce((sum, t) => sum + (t.type === 'INCOME' ? Number(t.amount) : t.type === 'EXPENSE' ? -Number(t.amount) : 0), 0)
   const visible = (clubs ?? []).filter(c => [c.name, c.category ?? ''].some(v => v.toLowerCase().includes(search.toLowerCase())))
   return (
     <AppShell email={user.email ?? ''}>
@@ -33,6 +35,7 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
         </form>
         {(membershipError || clubError) && <p role="alert" className="rounded-lg border p-4 text-destructive">Club directory could not be loaded.</p>}
         {incomplete && <p role="alert" className="rounded-lg border p-4 text-sm">Financial totals are unavailable because the complete transaction data could not be loaded.</p>}
+        {unmatched.length > 0 && <aside role="status" className="space-y-1 rounded-lg border p-4 text-sm"><h2 className="font-semibold">Unmatched historical transactions</h2><p>{unmatched.length} visible active transactions do not match a registered club name. Their net balance of {money(unmatchedNet)} is excluded from club cards.</p><p className="text-muted-foreground">Review historical club associations before relying on club-level balances.</p></aside>}
         <p className="text-sm text-muted-foreground">{visible.length} matching clubs</p>
         <div className="grid gap-4 md:grid-cols-2">
           {visible.map(club => {
