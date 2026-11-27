@@ -1,3 +1,5 @@
+import { CLUB_CATEGORIES } from '@/lib/club-categories'
+import { registerClub } from './actions'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/app-shell'
 import { createClient } from '@/lib/supabase/server'
@@ -11,8 +13,8 @@ function canonicalName(name: string | null) {
   return name
 }
 
-export default async function ClubsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams
+export default async function ClubsPage({ searchParams }: { searchParams: Promise<{ q?: string; registration?: string }> }) {
+  const { q, registration } = await searchParams
   const search = typeof q === 'string' ? q.trim().slice(0, 100) : ''
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -36,6 +38,16 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
     <AppShell email={user.email ?? ''}>
       <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8">
         <header><h1 className="text-2xl font-semibold">Clubs</h1><p className="mt-1 text-sm text-muted-foreground">Directory and financial overview for your authorised clubs.</p></header>
+        {admin && !clubError && <details className="rounded-xl border bg-card p-4">
+          <summary className="cursor-pointer font-medium">+ Register Club</summary>
+          <form action={registerClub} className="mt-4 space-y-4">
+            <label className="flex flex-col gap-1 text-sm">Official club name<input name="name" required maxLength={160} className="rounded-md border bg-background px-3 py-2" /></label>
+            <label className="flex flex-col gap-1 text-sm">Club category<select name="category" required defaultValue="" className="rounded-md border bg-background px-3 py-2"><option value="" disabled>Select category</option>{CLUB_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
+            <p className="text-xs text-muted-foreground">Registration is recorded in the audit log.</p>
+            <button className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">Register Club</button>
+          </form>
+        </details>}
+        {registration && <p role="status" className="rounded-lg border p-3 text-sm">{registration === 'success' ? 'Club registered successfully.' : registration === 'duplicate' ? 'A club with this name already exists.' : registration === 'invalid' ? 'Enter a valid name and category.' : registration === 'denied' ? 'Administrator access required.' : 'Registration could not be completed.'}</p>}
         <form action="/clubs" className="flex flex-wrap items-end gap-3">
           <label className="flex flex-1 flex-col gap-1 text-sm">Search clubs<input name="q" defaultValue={search} maxLength={100} type="search" placeholder="Club name or category" className="rounded-md border bg-background px-3 py-2" /></label>
           <button className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">Search</button>
@@ -61,7 +73,7 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
           })}
         </div>
         {!membershipError && !clubError && !visible.length && <p className="rounded-lg border p-8 text-center text-sm text-muted-foreground">No matching authorised clubs.</p>}
-        <p className="text-xs text-muted-foreground">Totals include only transactions visible under your existing permissions, reconcile confirmed historical club names, and exclude voided entries. Historical names remain unchanged in transaction records. Club registration and membership editing are not enabled in this release.</p>
+        <p className="text-xs text-muted-foreground">Totals include only transactions visible under your existing permissions, reconcile confirmed historical club names, and exclude voided entries. Historical names remain unchanged in transaction records. Membership editing is not enabled in this release.</p>
       </main>
     </AppShell>
   )
