@@ -9,6 +9,7 @@ alter table public.clubs add constraint clubs_registration_fields_valid check (
 ) not valid;
 create policy treasury_clubs_admin_insert on public.clubs for insert to authenticated
 with check ((select auth.uid()) is not null and (select private.is_treasury_admin()));
+revoke insert, update, delete, truncate, trigger, references on public.clubs from authenticated;
 grant insert (name, category) on public.clubs to authenticated;
 create function private.audit_club_registration() returns trigger
 language plpgsql security definer set search_path = ''
