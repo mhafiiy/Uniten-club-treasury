@@ -4,7 +4,7 @@ create unique index clubs_normalized_name_unique on public.clubs (lower(btrim(na
 alter table public.clubs add constraint clubs_registration_fields_valid check (
   name = btrim(name) and category = btrim(category)
   and char_length(name) between 1 and 160
-  and char_length(category) between 1 and 80
+  and category in ('Governance & Leadership','Academic & Professional','Sports & Recreation','Arts & Culture','Community & Welfare','Special Interest & Others')
   and lower(name) not in ('energy, economics & environmental student club','persatuan silat seni gayong')
 ) not valid;
 create policy treasury_clubs_admin_insert on public.clubs for insert to authenticated
